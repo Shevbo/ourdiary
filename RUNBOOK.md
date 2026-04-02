@@ -43,6 +43,30 @@ npx prisma migrate deploy
 npx prisma migrate dev --name migration-name
 ```
 
+### Пустая база (первый раз на prod)
+
+В репозитории есть **инкрементная** миграция (`SHOPPING_PLAN`, `push_subscriptions`), она **не создаёт** с нуля все таблицы. Если база **пустая**, однократно:
+
+```bash
+npx prisma migrate resolve --rolled-back "20250402120000_shopping_plan_and_push"   # если запись о «failed» уже есть
+npx prisma db push
+npx prisma migrate resolve --applied "20250402120000_shopping_plan_and_push"
+```
+
+Дальше на этом окружении используйте только `npx prisma migrate deploy` (как в `scripts/deploy.sh`).
+
+## PM2 на hoster (стандартный порт)
+
+Файл **`scripts/pm2.ecosystem.cjs`**: приложение слушает **порт 3002** (на общем hoster порты 3000/3001 часто заняты).
+
+```bash
+cd ~/ourdiary
+pm2 start scripts/pm2.ecosystem.cjs
+pm2 save
+```
+
+Переопределить порт: `OURDIARY_PORT=3010 pm2 start scripts/pm2.ecosystem.cjs` (и обновить `NEXTAUTH_URL` / `NEXT_PUBLIC_APP_URL` под внешний URL).
+
 ## Seed — создание суперадмина
 
 ```bash

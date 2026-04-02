@@ -41,11 +41,15 @@ if [[ -n "$UNIT" ]]; then
     echo "warn: systemctl --user restart $UNIT не удался (нет юнита или не user-systemd)"
   fi
 elif command -v pm2 &>/dev/null; then
+  ECOSYSTEM="$ROOT/scripts/pm2.ecosystem.cjs"
   if pm2 describe ourdiary &>/dev/null; then
     echo "restart: pm2 ourdiary"
     pm2 restart ourdiary
+  elif [[ -f "$ECOSYSTEM" ]]; then
+    echo "start: pm2 ecosystem $ECOSYSTEM"
+    pm2 start "$ECOSYSTEM"
   else
-    echo "start: pm2 ourdiary (первый запуск)"
+    echo "start: pm2 ourdiary (fallback npm start, задайте PORT в .env)"
     pm2 start npm --name ourdiary -- start
   fi
   pm2 save 2>/dev/null || true
