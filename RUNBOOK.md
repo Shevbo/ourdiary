@@ -68,9 +68,10 @@ npm start
 
 **Git (стандарт Shectory):** канонический `git_remote`, путь клона на VDS и правило SSH — в монолите `CursorRPA`: `docs/shectory-projects-registry.md` (строка **ourdiary**), подробнее — `docs/shectory-wikipedia.md` → раздел «Git remote и новый прикладной репозиторий», общее про commit/push перед деплоем — `docs/unified-deploy-ru.md`.
 
-> **Первый деплой**: необходимо создать директорию проекта на hoster и настроить systemd-сервис.
-> Пример: `ssh hoster "mkdir -p /home/ubuntu/ourdiary && git clone <repo-url> /home/ubuntu/ourdiary"`
-> После этого деплой через скрипт будет работать автоматически.
+> **Первый деплой на hoster**: клон в **`$HOME/ourdiary`** (так ищет `deploy-project.sh`), `.env` с `DATABASE_URL` и NextAuth, затем один раз собрать и настроить перезапуск:
+> `ssh hoster "git clone git@github.com:Shevbo/ourdiary.git ~/ourdiary"` (или HTTPS).
+> На сервере перезапуск: **`pm2`** (процесс `ourdiary`) или user-unit **`OURDIARY_SYSTEMD_USER_UNIT`** при вызове `scripts/deploy.sh`.
+> Локально скрипт: **`scripts/deploy.sh`** (выполняется на hoster после `git pull`).
 
 ## Структура приложения
 
