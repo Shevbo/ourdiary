@@ -1,0 +1,196 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Пользователи ────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  avatarUrl     String?
+  passwordHash  String?
+  role          UserRole  @default(MEMBER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  events        Event[]
+  comments      Comment[]
+  expenses      Expense[]
+  votes         Vote[]
+  tasks         Task[]    @relation("TaskAssignee")
+  tasksDone     Task[]    @relation("TaskCompleter")
+  ratingPoints  RatingPoint[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  SUPERADMIN
+  ADMIN
+  MEMBER
+}
+
+// ─── События / записи дневника ───────────────────────────────────────────────
+
+model Event {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  type        EventType   @default(DIARY)
+  status      EventStatus @default(ACTIVE)
+  date        DateTime
+  endDate     DateTime?
+  imageUrl    String?
+  links       EventLink[]
+  authorId    String
+  author      User        @relation(fields: [authorId], references: [id])
+  comments    Comment[]
+  votes       Vote[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("events")
+}
+
+enum EventType {
+  DIARY       // запись в дневнике (прошедшее)
+  PLAN        // запланированное мероприятие
+  BIRTHDAY    // день рождения
+  HOLIDAY     // праздник/отпуск
+  REMINDER    // напоминание
+}
+
+enum EventStatus {
+  ACTIVE
+  CANCELLED
+  DONE
+}
+
+model EventLink {
+  id      String @id @default(cuid())
+  label   String
+  url     String
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("event_links")
+}
+
+// ─── Комментарии ─────────────────────────────────────────────────────────────
+
+model Comment {
+  id        String   @id @default(cuid())
+  text      String
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@map("comments")
+}
+
+// ─── Голосование ─────────────────────────────────────────────────────────────
+
+model Vote {
+  id        String    @id @default(cuid())
+  value     VoteValue
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  eventId   String
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@unique([userId, eventId])
+  @@map("votes")
+}
+
+enum VoteValue {
+  UP
+  DOWN
+}
+
+// ─── Расходы ─────────────────────────────────────────────────────────────────
+
+model Expense {
+  id          String          @id @default(cuid())
+  title       String
+  amount      Decimal         @db.Decimal(10, 2)
+  currency    String          @default("RUB")
+  category    ExpenseCategory @default(OTHER)
+  date        DateTime        @default(now())
+  note        String?
+  authorId    String
+  author      User            @relation(fields: [authorId], references: [id])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("expenses")
+}
+
+enum ExpenseCategory {
+  FOOD
+  TRANSPORT
+  ENTERTAINMENT
+  HEALTH
+  EDUCATION
+  CLOTHING
+  HOME
+  VACATION
+  OTHER
+}
+
+// ─── Задачи / обязанности ────────────────────────────────────────────────────
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      TaskStatus @default(PENDING)
+  points      Int        @default(10)
+  assigneeId  String?
+  assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  completedBy String?
+  completer   User?      @relation("TaskCompleter", fields: [completedBy], references: [id])
+  completedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("tasks")
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  OVERDUE
+}
+
+// ─── Рейтинг / бонусные очки ─────────────────────────────────────────────────
+
+model RatingPoint {
+  id        String          @id @default(cuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id])
+  points    Int
+  reason    String
+  type      RatingPointType
+  createdAt DateTime        @default(now())
+
+  @@map("rating_points")
+}
+
+enum RatingPointType {
+  TASK_DONE
+  EVENT_CREATED
+  VOTE_CAST
+  EXPENSE_ADDED
+  BONUS
+  PENALTY
+}
