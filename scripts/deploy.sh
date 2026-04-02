@@ -41,7 +41,7 @@ if [[ -n "$UNIT" ]]; then
     echo "warn: systemctl --user restart $UNIT не удался (нет юнита или не user-systemd)"
   fi
 elif command -v pm2 &>/dev/null; then
-  ECOSYSTEM="$ROOT/scripts/pm2.ecosystem.cjs"
+  ECOSYSTEM="$ROOT/ecosystem.config.cjs"
   if pm2 describe ourdiary &>/dev/null; then
     echo "restart: pm2 ourdiary"
     pm2 restart ourdiary

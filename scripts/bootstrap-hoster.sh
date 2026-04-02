@@ -75,7 +75,7 @@ npx prisma db seed || { echo "seed: fallback tsx"; npx tsx prisma/seed.ts; }
 npm run build
 
 pm2 delete ourdiary 2>/dev/null || true
-OURDIARY_PORT="$PORT" pm2 start scripts/pm2.ecosystem.cjs
+OURDIARY_PORT="$PORT" pm2 start ecosystem.config.cjs
 pm2 save
 
 echo "Готово: $TARGET , порт $PORT . Смените NEXTAUTH_URL при выставлении nginx."

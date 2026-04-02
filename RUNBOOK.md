@@ -57,15 +57,15 @@ npx prisma migrate resolve --applied "20250402120000_shopping_plan_and_push"
 
 ## PM2 на hoster (стандартный порт)
 
-Файл **`scripts/pm2.ecosystem.cjs`**: приложение слушает **порт 3002** (на общем hoster порты 3000/3001 часто заняты).
+Файл **`ecosystem.config.cjs`** в корне репозитория: приложение слушает **порт 3002** (на общем hoster порты 3000/3001 часто заняты).
 
 ```bash
 cd ~/ourdiary
-pm2 start scripts/pm2.ecosystem.cjs
+pm2 start ecosystem.config.cjs
 pm2 save
 ```
 
-Переопределить порт: `OURDIARY_PORT=3010 pm2 start scripts/pm2.ecosystem.cjs` (и обновить `NEXTAUTH_URL` / `NEXT_PUBLIC_APP_URL` под внешний URL).
+Переопределить порт: `OURDIARY_PORT=3010 pm2 start ecosystem.config.cjs` (и обновить `NEXTAUTH_URL` / `NEXT_PUBLIC_APP_URL` под внешний URL).
 
 ## Seed — создание суперадмина
 
