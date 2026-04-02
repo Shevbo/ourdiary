@@ -28,10 +28,10 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDING: "bg-slate-500/20 text-slate-400",
-  IN_PROGRESS: "bg-blue-500/20 text-blue-400",
-  DONE: "bg-emerald-500/20 text-emerald-400",
-  OVERDUE: "bg-red-500/20 text-red-400",
+  PENDING: "bg-slate-200 dark:bg-slate-500/20 text-slate-700 dark:text-slate-400",
+  IN_PROGRESS: "bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-400",
+  DONE: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400",
+  OVERDUE: "bg-red-100 dark:bg-red-500/20 text-red-800 dark:text-red-400",
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
@@ -41,10 +41,16 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   OVERDUE: <AlertCircle className="w-4 h-4" />,
 };
 
+const STATUS_ICON_RING: Record<string, string> = {
+  PENDING: "text-slate-500 dark:text-slate-400",
+  IN_PROGRESS: "text-blue-600 dark:text-blue-400",
+  DONE: "text-emerald-600 dark:text-emerald-400",
+  OVERDUE: "text-red-600 dark:text-red-400",
+};
+
 export default function TasksClient({
   tasks: initialTasks,
   users,
-  currentUserId,
   currentUserRole,
 }: {
   tasks: Task[];
@@ -129,7 +135,7 @@ export default function TasksClient({
   return (
     <div className="max-w-3xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-white text-2xl font-bold">Задачи и обязанности</h1>
+        <h1 className="text-slate-900 dark:text-white text-2xl font-bold">Задачи и обязанности</h1>
         {isAdmin && (
           <button
             onClick={() => setShowForm(true)}
@@ -146,7 +152,7 @@ export default function TasksClient({
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-11 md:min-h-0"
         >
           <option value="">Все статусы</option>
           {Object.entries(STATUS_LABELS).map(([val, label]) => (
@@ -156,7 +162,7 @@ export default function TasksClient({
         <select
           value={filterAssignee}
           onChange={(e) => setFilterAssignee(e.target.value)}
-          className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-11 md:min-h-0"
         >
           <option value="">Все исполнители</option>
           {users.map((u) => (
@@ -166,20 +172,20 @@ export default function TasksClient({
       </div>
 
       {filtered.length === 0 ? (
-        <div className="text-center py-16 text-slate-500">Нет задач</div>
+        <div className="text-center py-16 text-slate-500 dark:text-slate-500">Нет задач</div>
       ) : (
         <div className="space-y-3">
           {filtered.map((task) => (
             <div
               key={task.id}
-              className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-start gap-3"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex items-start gap-3 shadow-sm dark:shadow-none"
             >
-              <div className={cn("mt-0.5 flex-shrink-0", STATUS_COLORS[task.status]?.split(" ")[1])}>
+              <div className={cn("mt-0.5 flex-shrink-0", STATUS_ICON_RING[task.status] ?? "text-slate-500")}>
                 {STATUS_ICONS[task.status]}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
-                  <p className={cn("text-sm font-medium", task.status === "DONE" ? "text-slate-500 line-through" : "text-white")}>
+                  <p className={cn("text-sm font-medium", task.status === "DONE" ? "text-slate-400 dark:text-slate-500 line-through" : "text-slate-900 dark:text-white")}>
                     {task.title}
                   </p>
                   <span className={cn("text-xs px-2 py-0.5 rounded-full flex-shrink-0", STATUS_COLORS[task.status])}>
@@ -187,9 +193,9 @@ export default function TasksClient({
                   </span>
                 </div>
                 {task.description && (
-                  <p className="text-slate-400 text-xs mt-1">{task.description}</p>
+                  <p className="text-slate-600 dark:text-slate-400 text-xs mt-1">{task.description}</p>
                 )}
-                <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500">
+                <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500 dark:text-slate-500">
                   {task.assignee && <span>Исполнитель: {task.assignee.name ?? task.assignee.id}</span>}
                   {task.dueDate && (
                     <span className={cn(
@@ -198,14 +204,14 @@ export default function TasksClient({
                       До: {format(new Date(task.dueDate), "d MMM yyyy", { locale: ru })}
                     </span>
                   )}
-                  <span className="text-amber-400">+{task.points} очков</span>
+                  <span className="text-amber-700 dark:text-amber-400">+{task.points} очков</span>
                 </div>
               </div>
               {task.status !== "DONE" && (
                 <button
                   onClick={() => handleComplete(task.id)}
                   disabled={completing === task.id}
-                  className="flex-shrink-0 flex items-center gap-1.5 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                  className="flex-shrink-0 flex items-center gap-1.5 text-xs min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 bg-emerald-100 dark:bg-emerald-500/20 hover:bg-emerald-200 dark:hover:bg-emerald-500/30 text-emerald-800 dark:text-emerald-400 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   {completing === task.id ? "…" : "Выполнить"}
@@ -219,60 +225,60 @@ export default function TasksClient({
       {/* Create task modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
-              <h2 className="text-white font-semibold text-lg">Новая задача</h2>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-slate-900 dark:text-white font-semibold text-lg">Новая задача</h2>
+              <button type="button" onClick={() => setShowForm(false)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white min-h-11 min-w-11 flex items-center justify-center sm:min-h-0 sm:min-w-0">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-slate-300 text-sm font-medium mb-1.5">Название *</label>
+                <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Название *</label>
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
                   placeholder="Что нужно сделать?"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div>
-                <label className="block text-slate-300 text-sm font-medium mb-1.5">Описание</label>
+                <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Описание</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={2}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm resize-none"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 text-sm font-medium mb-1.5">Срок</label>
+                  <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Срок</label>
                   <input
                     type="date"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 text-sm font-medium mb-1.5">Очки</label>
+                  <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Очки</label>
                   <input
                     type="number"
                     min="1"
                     value={points}
                     onChange={(e) => setPoints(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-slate-300 text-sm font-medium mb-1.5">Исполнитель</label>
+                <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Исполнитель</label>
                 <select
                   value={assigneeId}
                   onChange={(e) => setAssigneeId(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">Не назначен</option>
                   {users.map((u) => (
@@ -281,13 +287,13 @@ export default function TasksClient({
                 </select>
               </div>
               {error && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">{error}</div>
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-600 dark:text-red-400 text-sm">{error}</div>
               )}
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg px-4 py-2.5 transition-colors text-sm"
+                  className="flex-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-300 font-medium rounded-lg px-4 py-2.5 transition-colors text-sm min-h-11 sm:min-h-0"
                 >
                   Отмена
                 </button>

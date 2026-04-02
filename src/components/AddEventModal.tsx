@@ -97,32 +97,32 @@ export default function AddEventModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
-          <h2 className="text-white font-semibold text-lg">Новое событие</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+          <h2 className="text-slate-900 dark:text-white font-semibold text-lg">Новое событие</h2>
+          <button type="button" onClick={onClose} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors min-h-11 min-w-11 flex items-center justify-center sm:min-h-0 sm:min-w-0">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-slate-300 text-sm font-medium mb-1.5">Заголовок *</label>
+            <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Заголовок *</label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
               placeholder="Название события"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           <div>
-            <label className="block text-slate-300 text-sm font-medium mb-1.5">Тип</label>
+            <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Тип</label>
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               {EVENT_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
@@ -132,41 +132,41 @@ export default function AddEventModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-1.5">Дата *</label>
+              <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Дата *</label>
               <input
                 type="datetime-local"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 required
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
             <div>
-              <label className="block text-slate-300 text-sm font-medium mb-1.5">Дата окончания</label>
+              <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Дата окончания</label>
               <input
                 type="datetime-local"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-slate-300 text-sm font-medium mb-1.5">Описание</label>
+            <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Описание</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               placeholder="Подробности события…"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm resize-none"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
           </div>
 
           <div>
-            <label className="block text-slate-300 text-sm font-medium mb-1.5">Изображение</label>
+            <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Изображение</label>
             <div className="flex flex-col gap-2">
-              <label className="flex items-center justify-center gap-2 w-full border border-dashed border-slate-600 rounded-lg px-3 py-4 text-slate-400 text-sm cursor-pointer hover:border-indigo-500/50 hover:text-slate-300 transition-colors">
+              <label className="flex items-center justify-center gap-2 w-full border border-dashed border-slate-400 dark:border-slate-600 rounded-lg px-3 py-4 text-slate-500 dark:text-slate-400 text-sm cursor-pointer hover:border-indigo-500/60 dark:hover:border-indigo-500/50 hover:text-slate-700 dark:hover:text-slate-300 transition-colors min-h-11">
                 {uploadingImage ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
@@ -185,19 +185,19 @@ export default function AddEventModal({
                   }}
                 />
               </label>
-              <p className="text-slate-500 text-xs">или укажите ссылку:</p>
+              <p className="text-slate-500 dark:text-slate-500 text-xs">или укажите ссылку:</p>
               <input
                 value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
                 placeholder="https://…"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-slate-300 text-sm font-medium">Ссылки</label>
+              <label className="text-slate-700 dark:text-slate-300 text-sm font-medium">Ссылки</label>
               <button
                 type="button"
                 onClick={addLink}
@@ -213,13 +213,13 @@ export default function AddEventModal({
                     value={link.label}
                     onChange={(e) => updateLink(i, "label", e.target.value)}
                     placeholder="Название"
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                    className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <input
                     value={link.url}
                     onChange={(e) => updateLink(i, "url", e.target.value)}
                     placeholder="https://…"
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                    className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <button
                     type="button"
@@ -234,7 +234,7 @@ export default function AddEventModal({
           </div>
 
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-600 dark:text-red-400 text-sm">
               {error}
             </div>
           )}
@@ -243,7 +243,7 @@ export default function AddEventModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg px-4 py-2.5 transition-colors text-sm"
+              className="flex-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-300 font-medium rounded-lg px-4 py-2.5 transition-colors text-sm min-h-11 sm:min-h-0"
             >
               Отмена
             </button>

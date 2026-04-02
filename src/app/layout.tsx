@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import SessionProvider from "@/components/SessionProvider";
@@ -12,6 +12,15 @@ const geistSans = Geist({
 export const metadata: Metadata = {
   title: "Наш дневник",
   description: "Семейная социальная сеть — лента событий, календарь, расходы, рейтинг",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
+    { media: "(prefers-color-scheme: dark)", color: "#020617" },
+  ],
 };
 
 export default function RootLayout({

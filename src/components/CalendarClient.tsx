@@ -67,18 +67,20 @@ export default function CalendarClient({
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-white text-2xl font-bold">Календарь</h1>
+        <h1 className="text-slate-900 dark:text-white text-2xl font-bold">Календарь</h1>
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={() => navigate(-1)}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <span className="text-white font-semibold capitalize min-w-36 text-center">{monthLabel}</span>
+          <span className="text-slate-900 dark:text-white font-semibold capitalize min-w-36 text-center">{monthLabel}</span>
           <button
+            type="button"
             onClick={() => navigate(1)}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -113,15 +115,15 @@ export default function CalendarClient({
                   key={day}
                   onClick={() => setSelectedDay(isSelected ? null : day)}
                   className={cn(
-                    "relative aspect-square flex flex-col items-center justify-start pt-1.5 rounded-lg text-sm transition-colors",
+                    "relative aspect-square flex flex-col items-center justify-start pt-1.5 rounded-lg text-sm transition-colors min-h-[44px] sm:min-h-0",
                     isSelected
-                      ? "bg-indigo-600 text-white"
+                      ? "bg-indigo-600 text-white shadow-md"
                       : isToday
-                      ? "bg-slate-700 text-white"
-                      : "text-slate-300 hover:bg-slate-800"
+                      ? "bg-indigo-100 dark:bg-slate-700 text-indigo-900 dark:text-white ring-1 ring-indigo-300 dark:ring-slate-600"
+                      : "text-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800"
                   )}
                 >
-                  <span className={cn("font-medium", isToday && !isSelected && "text-indigo-400")}>
+                  <span className={cn("font-medium", isToday && !isSelected && "text-indigo-700 dark:text-indigo-300")}>
                     {day}
                   </span>
                   {dayEvents.length > 0 && (
@@ -142,7 +144,7 @@ export default function CalendarClient({
           {/* Legend */}
           <div className="flex flex-wrap gap-3 mt-4">
             {Object.entries(TYPE_DOTS).map(([type, dot]) => (
-              <div key={type} className="flex items-center gap-1.5 text-xs text-slate-400">
+              <div key={type} className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
                 <span className={cn("w-2 h-2 rounded-full", dot)} />
                 {EVENT_TYPE_LABELS[type]}
               </div>
@@ -154,26 +156,26 @@ export default function CalendarClient({
         <div className="lg:col-span-1">
           {selectedDay ? (
             <div>
-              <h2 className="text-white font-semibold mb-3">
+              <h2 className="text-slate-900 dark:text-white font-semibold mb-3">
                 {selectedDay} {format(new Date(year, month - 1, 1), "MMMM", { locale: ru })}
               </h2>
               {selectedEvents.length === 0 ? (
-                <p className="text-slate-500 text-sm">Нет событий в этот день</p>
+                <p className="text-slate-500 dark:text-slate-500 text-sm">Нет событий в этот день</p>
               ) : (
                 <div className="space-y-3">
                   {selectedEvents.map((ev) => (
                     <div
                       key={ev.id}
-                      className="bg-slate-900 border border-slate-800 rounded-xl p-3"
+                      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm dark:shadow-none"
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", EVENT_TYPE_COLORS[ev.type])}>
                           {EVENT_TYPE_LABELS[ev.type]}
                         </span>
                       </div>
-                      <p className="text-white text-sm font-medium">{ev.title}</p>
+                      <p className="text-slate-900 dark:text-white text-sm font-medium">{ev.title}</p>
                       {ev.description && (
-                        <p className="text-slate-400 text-xs mt-1 line-clamp-2">{ev.description}</p>
+                        <p className="text-slate-600 dark:text-slate-400 text-xs mt-1 line-clamp-2">{ev.description}</p>
                       )}
                       {ev.links.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
@@ -183,7 +185,7 @@ export default function CalendarClient({
                               href={l.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs text-indigo-400 hover:text-indigo-300"
+                              className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300"
                             >
                               {l.label}
                             </a>
@@ -196,8 +198,8 @@ export default function CalendarClient({
               )}
             </div>
           ) : (
-            <div className="text-slate-500 text-sm">
-              <Calendar className="w-8 h-8 mb-2 opacity-30" />
+            <div className="text-slate-500 dark:text-slate-500 text-sm">
+              <Calendar className="w-8 h-8 mb-2 opacity-40" />
               <p>Выберите день для просмотра событий</p>
               <p className="mt-3 text-xs">Всего событий в месяце: {events.length}</p>
             </div>

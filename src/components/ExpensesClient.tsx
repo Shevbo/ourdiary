@@ -40,7 +40,6 @@ export default function ExpensesClient({
   expenses: Expense[];
   monthlyTotals: { label: string; total: number }[];
 }) {
-  const [expenses, setExpenses] = useState(initialExpenses);
   const [showForm, setShowForm] = useState(false);
   const [filterCategory, setFilterCategory] = useState("");
   const [filterPeriod, setFilterPeriod] = useState("all");
@@ -56,7 +55,7 @@ export default function ExpensesClient({
   const [error, setError] = useState("");
 
   const filtered = useMemo(() => {
-    let list = expenses;
+    let list = initialExpenses;
     if (filterCategory) list = list.filter((e) => e.category === filterCategory);
     if (filterPeriod !== "all") {
       const now = new Date();
@@ -67,7 +66,7 @@ export default function ExpensesClient({
       list = list.filter((e) => new Date(e.date) >= from);
     }
     return list;
-  }, [expenses, filterCategory, filterPeriod]);
+  }, [initialExpenses, filterCategory, filterPeriod]);
 
   const totalByCategory = useMemo(() => {
     const map: Record<string, number> = {};
@@ -115,8 +114,9 @@ export default function ExpensesClient({
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-slate-900 dark:text-white text-2xl font-bold">Расходы семьи</h1>
         <button
+          type="button"
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors min-h-11 sm:min-h-0"
         >
           <Plus className="w-4 h-4" />
           Добавить
@@ -128,7 +128,7 @@ export default function ExpensesClient({
         <select
           value={filterCategory}
           onChange={(e) => setFilterCategory(e.target.value)}
-          className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-11 md:min-h-0"
         >
           <option value="">Все категории</option>
           {CATEGORIES.map(([val, label]) => (
@@ -138,7 +138,7 @@ export default function ExpensesClient({
         <select
           value={filterPeriod}
           onChange={(e) => setFilterPeriod(e.target.value)}
-          className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-11 md:min-h-0"
         >
           <option value="all">Всё время</option>
           <option value="week">Неделя</option>
@@ -260,27 +260,27 @@ export default function ExpensesClient({
       {/* Add form modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
-              <h2 className="text-white font-semibold text-lg">Новый расход</h2>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-slate-900 dark:text-white font-semibold text-lg">Новый расход</h2>
+              <button type="button" onClick={() => setShowForm(false)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white min-h-11 min-w-11 flex items-center justify-center sm:min-h-0 sm:min-w-0">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-slate-300 text-sm font-medium mb-1.5">Название *</label>
+                <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Название *</label>
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
                   placeholder="Продукты, кино, такси…"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 text-sm font-medium mb-1.5">Сумма (₽) *</label>
+                  <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Сумма (₽) *</label>
                   <input
                     type="number"
                     min="0"
@@ -289,25 +289,25 @@ export default function ExpensesClient({
                     onChange={(e) => setAmount(e.target.value)}
                     required
                     placeholder="0.00"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 text-sm font-medium mb-1.5">Дата</label>
+                  <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Дата</label>
                   <input
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-slate-300 text-sm font-medium mb-1.5">Категория</label>
+                <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Категория</label>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   {CATEGORIES.map(([val, label]) => (
                     <option key={val} value={val}>{label}</option>
@@ -315,22 +315,22 @@ export default function ExpensesClient({
                 </select>
               </div>
               <div>
-                <label className="block text-slate-300 text-sm font-medium mb-1.5">Заметка</label>
+                <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Заметка</label>
                 <input
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="Необязательно"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               {error && (
-                <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">{error}</div>
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-600 dark:text-red-400 text-sm">{error}</div>
               )}
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg px-4 py-2.5 transition-colors text-sm"
+                  className="flex-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-300 font-medium rounded-lg px-4 py-2.5 transition-colors text-sm min-h-11 sm:min-h-0"
                 >
                   Отмена
                 </button>
