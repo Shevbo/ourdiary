@@ -66,6 +66,8 @@ npm start
 /home/shectory/workspaces/CursorRPA/scripts/deploy-project.sh ourdiary hoster
 ```
 
+**Git (стандарт Shectory):** канонический `git_remote`, путь клона на VDS и правило SSH — в монолите `CursorRPA`: `docs/shectory-projects-registry.md` (строка **ourdiary**), подробнее — `docs/shectory-wikipedia.md` → раздел «Git remote и новый прикладной репозиторий», общее про commit/push перед деплоем — `docs/unified-deploy-ru.md`.
+
 > **Первый деплой**: необходимо создать директорию проекта на hoster и настроить systemd-сервис.
 > Пример: `ssh hoster "mkdir -p /home/ubuntu/ourdiary && git clone <repo-url> /home/ubuntu/ourdiary"`
 > После этого деплой через скрипт будет работать автоматически.
