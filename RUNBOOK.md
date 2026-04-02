@@ -57,6 +57,10 @@ npm start
 /home/shectory/workspaces/CursorRPA/scripts/deploy-project.sh ourdiary hoster
 ```
 
+> **Первый деплой**: необходимо создать директорию проекта на hoster и настроить systemd-сервис.
+> Пример: `ssh hoster "mkdir -p /home/ubuntu/ourdiary && git clone <repo-url> /home/ubuntu/ourdiary"`
+> После этого деплой через скрипт будет работать автоматически.
+
 ## Структура приложения
 
 | Маршрут | Описание |
