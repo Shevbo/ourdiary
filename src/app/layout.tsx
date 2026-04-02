@@ -20,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={`${geistSans.variable} h-full`}>
-      <body className="min-h-full bg-slate-950 text-slate-100 antialiased">
+    <html lang="ru" className={`${geistSans.variable} h-full`} suppressHydrationWarning>
+      <body className="min-h-full bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
         <SessionProvider>
           <AppShell>{children}</AppShell>
         </SessionProvider>

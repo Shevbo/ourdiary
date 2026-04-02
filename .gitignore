@@ -40,4 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# загруженные изображения событий (создаются в рантайме)
+/public/uploads
+
 /src/generated/prisma

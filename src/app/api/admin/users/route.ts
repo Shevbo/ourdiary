@@ -11,7 +11,7 @@ function isAdminSession(role: string) {
 export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session || !isAdminSession(session.user.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Доступ запрещён" }, { status: 403 });
   }
 
   const { userId, role } = await req.json();
@@ -19,7 +19,7 @@ export async function PATCH(req: NextRequest) {
   if (userId === session.user.id) return NextResponse.json({ error: "Нельзя изменить свою роль" }, { status: 400 });
 
   const target = await prisma.user.findUnique({ where: { id: userId } });
-  if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!target) return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
   if (target.role === "SUPERADMIN") return NextResponse.json({ error: "Нельзя изменить роль суперадмина" }, { status: 403 });
 
   const allowed = ["MEMBER", "ADMIN"];
@@ -37,7 +37,7 @@ export async function PATCH(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session || !isAdminSession(session.user.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Доступ запрещён" }, { status: 403 });
   }
 
   const { email, name, password, role } = await req.json();

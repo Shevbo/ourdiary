@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Plus, Trash2 } from "lucide-react";
+import { X, Plus, Trash2, ImagePlus, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Link = { label: string; url: string };
@@ -27,6 +27,7 @@ export default function AddEventModal({
   const [date, setDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [links, setLinks] = useState<Link[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -39,6 +40,27 @@ export default function AddEventModal({
   }
   function updateLink(i: number, field: "label" | "url", value: string) {
     setLinks((l) => l.map((item, idx) => (idx === i ? { ...item, [field]: value } : item)));
+  }
+
+  async function handleImageFile(file: File | null) {
+    if (!file) return;
+    setError("");
+    setUploadingImage(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload/event-image", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Не удалось загрузить изображение");
+        return;
+      }
+      if (data.url) setImageUrl(data.url);
+    } catch {
+      setError("Ошибка загрузки файла");
+    } finally {
+      setUploadingImage(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -142,13 +164,35 @@ export default function AddEventModal({
           </div>
 
           <div>
-            <label className="block text-slate-300 text-sm font-medium mb-1.5">URL изображения</label>
-            <input
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://…"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-            />
+            <label className="block text-slate-300 text-sm font-medium mb-1.5">Изображение</label>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center justify-center gap-2 w-full border border-dashed border-slate-600 rounded-lg px-3 py-4 text-slate-400 text-sm cursor-pointer hover:border-indigo-500/50 hover:text-slate-300 transition-colors">
+                {uploadingImage ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <ImagePlus className="w-5 h-5" />
+                )}
+                <span>{uploadingImage ? "Загрузка…" : "Загрузить файл (до 5 МБ)"}</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  disabled={uploadingImage}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    void handleImageFile(f ?? null);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              <p className="text-slate-500 text-xs">или укажите ссылку:</p>
+              <input
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="https://…"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
+            </div>
           </div>
 
           <div>

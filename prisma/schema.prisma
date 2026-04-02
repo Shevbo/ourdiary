@@ -25,6 +25,7 @@ model User {
   tasks         Task[]    @relation("TaskAssignee")
   tasksDone     Task[]    @relation("TaskCompleter")
   ratingPoints  RatingPoint[]
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
 }
@@ -142,6 +143,7 @@ enum ExpenseCategory {
   CLOTHING
   HOME
   VACATION
+  SHOPPING_PLAN
   OTHER
 }
 
@@ -193,4 +195,18 @@ enum RatingPointType {
   EXPENSE_ADDED
   BONUS
   PENALTY
+}
+
+// ─── Web Push (PWA) ─────────────────────────────────────────────────────────
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@map("push_subscriptions")
 }

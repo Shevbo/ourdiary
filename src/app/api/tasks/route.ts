@@ -3,9 +3,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+function isAdminRole(role: string) {
+  return role === "ADMIN" || role === "SUPERADMIN";
+}
+
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
@@ -29,7 +33,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
+  if (!isAdminRole(session.user.role)) {
+    return NextResponse.json({ error: "Создавать задачи могут только администраторы" }, { status: 403 });
+  }
 
   const body = await req.json();
   const { title, description, dueDate, assigneeId, points } = body;

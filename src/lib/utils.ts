@@ -44,6 +44,7 @@ export const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
   CLOTHING: "Одежда",
   HOME: "Дом",
   VACATION: "Отпуск",
+  SHOPPING_PLAN: "План покупок",
   OTHER: "Прочее",
 };
 
@@ -56,9 +57,9 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
 };
 
 export const EVENT_TYPE_COLORS: Record<string, string> = {
-  DIARY: "bg-blue-100 text-blue-800",
-  PLAN: "bg-green-100 text-green-800",
-  BIRTHDAY: "bg-pink-100 text-pink-800",
-  HOLIDAY: "bg-orange-100 text-orange-800",
-  REMINDER: "bg-yellow-100 text-yellow-800",
+  DIARY: "bg-blue-500/15 text-blue-300 border border-blue-500/25",
+  PLAN: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/25",
+  BIRTHDAY: "bg-pink-500/15 text-pink-300 border border-pink-500/25",
+  HOLIDAY: "bg-orange-500/15 text-orange-300 border border-orange-500/25",
+  REMINDER: "bg-amber-500/15 text-amber-300 border border-amber-500/25",
 };

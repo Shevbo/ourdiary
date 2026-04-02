@@ -24,7 +24,7 @@ export default function FeedClient({
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-white text-2xl font-bold">Лента событий</h1>
+        <h1 className="text-slate-900 dark:text-white text-2xl font-bold">Лента событий</h1>
         <button
           onClick={() => setShowModal(true)}
           className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
@@ -35,7 +35,7 @@ export default function FeedClient({
       </div>
 
       {events.length === 0 ? (
-        <div className="text-center py-20 text-slate-500">
+        <div className="text-center py-20 text-slate-500 dark:text-slate-500">
           <p className="text-lg mb-2">Пока нет событий</p>
           <p className="text-sm">Добавьте первое событие семьи!</p>
         </div>

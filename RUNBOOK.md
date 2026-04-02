@@ -8,6 +8,8 @@ npm run dev
 
 Приложение доступно на http://localhost:3000
 
+> **Next.js 16.x**: граница авторизации настроена в `src/proxy.ts` (в этой версии файл `middleware.ts` переименован в соглашение `proxy`). Публичные пути: `/login`, `/security`, `/api/auth/*`, статика и каталог `/uploads/*`.
+
 ## Переменные окружения
 
 Создайте файл `.env` в корне проекта:
@@ -22,6 +24,13 @@ NEXTAUTH_URL="http://localhost:3000"
 
 # Seed (опционально, для dev)
 SEED_SUPERADMIN_PASSWORD="your-superadmin-password"
+
+# Web Push (опционально; без этого блок «Уведомления» скрывается)
+# Сгенерировать ключи: npx web-push generate-vapid-keys
+NEXT_PUBLIC_VAPID_PUBLIC_KEY="..."
+VAPID_PRIVATE_KEY="..."
+# Контакт для VAPID (рекомендуется mailto:)
+VAPID_SUBJECT="mailto:admin@example.com"
 ```
 
 ## Миграции базы данных
@@ -92,3 +101,7 @@ npm start
 | GET | `/api/users` | Список пользователей |
 | PATCH | `/api/admin/users` | Изменить роль (ADMIN+) |
 | POST | `/api/admin/users` | Создать пользователя (ADMIN+) |
+| POST | `/api/upload/event-image` | Загрузка изображения события (multipart) |
+| GET | `/api/push/vapid-public` | Публичный VAPID-ключ |
+| POST | `/api/push/subscribe` | Сохранить Web Push-подписку |
+| DELETE | `/api/push/subscribe?endpoint=…` | Удалить подписку |

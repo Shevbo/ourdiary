@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from");
@@ -22,20 +22,32 @@ export async function GET(req: NextRequest) {
     if (to) (where.date as Record<string, unknown>).lte = new Date(to);
   }
 
-  const expenses = await prisma.expense.findMany({
-    where,
-    include: { author: { select: { id: true, name: true, avatarUrl: true } } },
-    orderBy: { date: "desc" },
-  });
+  const [expenses, byCategory] = await Promise.all([
+    prisma.expense.findMany({
+      where,
+      include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+      orderBy: { date: "desc" },
+    }),
+    prisma.expense.groupBy({
+      by: ["category"],
+      where,
+      _sum: { amount: true },
+    }),
+  ]);
 
   const total = expenses.reduce((sum: number, e: { amount: unknown }) => sum + Number(e.amount), 0);
 
-  return NextResponse.json({ expenses, total });
+  const aggregates = byCategory.map((row) => ({
+    category: row.category,
+    sum: Number(row._sum.amount ?? 0),
+  }));
+
+  return NextResponse.json({ expenses, total, byCategory: aggregates });
 }
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
 
   const body = await req.json();
   const { title, amount, category, date, note, currency } = body;

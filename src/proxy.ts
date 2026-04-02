@@ -16,6 +16,6 @@ export default authProxy;
 
 export const config = {
   matcher: [
-    "/((?!login|api/auth|_next/static|_next/image|favicon.ico|public).*)",
+    "/((?!login|security|api/auth|_next/static|_next/image|favicon.ico|uploads).*)",
   ],
 };

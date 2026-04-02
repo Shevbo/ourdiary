@@ -29,10 +29,17 @@ const CATEGORY_COLORS: Record<string, string> = {
   CLOTHING: "bg-pink-500/20 text-pink-400",
   HOME: "bg-amber-500/20 text-amber-400",
   VACATION: "bg-emerald-500/20 text-emerald-400",
+  SHOPPING_PLAN: "bg-teal-500/20 text-teal-400",
   OTHER: "bg-slate-500/20 text-slate-400",
 };
 
-export default function ExpensesClient({ expenses: initialExpenses }: { expenses: Expense[] }) {
+export default function ExpensesClient({
+  expenses: initialExpenses,
+  monthlyTotals,
+}: {
+  expenses: Expense[];
+  monthlyTotals: { label: string; total: number }[];
+}) {
   const [expenses, setExpenses] = useState(initialExpenses);
   const [showForm, setShowForm] = useState(false);
   const [filterCategory, setFilterCategory] = useState("");
@@ -72,6 +79,11 @@ export default function ExpensesClient({ expenses: initialExpenses }: { expenses
 
   const grandTotal = filtered.reduce((s, e) => s + e.amount, 0);
   const maxCat = totalByCategory[0]?.[1] ?? 1;
+  const maxMonth = Math.max(...monthlyTotals.map((m) => m.total), 1);
+  const chartW = 320;
+  const chartH = 120;
+  const barGap = 4;
+  const barW = (chartW - barGap * (monthlyTotals.length + 1)) / monthlyTotals.length;
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
@@ -101,7 +113,7 @@ export default function ExpensesClient({ expenses: initialExpenses }: { expenses
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-white text-2xl font-bold">Расходы семьи</h1>
+        <h1 className="text-slate-900 dark:text-white text-2xl font-bold">Расходы семьи</h1>
         <button
           onClick={() => setShowForm(true)}
           className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
@@ -138,25 +150,62 @@ export default function ExpensesClient({ expenses: initialExpenses }: { expenses
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart / summary */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm dark:shadow-none">
             <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-emerald-400" />
-              <span className="text-slate-400 text-sm">Итого</span>
+              <DollarSign className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+              <span className="text-slate-500 dark:text-slate-400 text-sm">Итого (фильтр)</span>
             </div>
-            <p className="text-white text-2xl font-bold">{formatMoney(grandTotal)}</p>
+            <p className="text-slate-900 dark:text-white text-2xl font-bold">{formatMoney(grandTotal)}</p>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm dark:shadow-none">
+            <h3 className="text-slate-700 dark:text-slate-300 text-sm font-medium mb-3">Расходы по месяцам</h3>
+            <svg
+              viewBox={`0 0 ${chartW} ${chartH + 24}`}
+              className="w-full h-auto text-indigo-500"
+              role="img"
+              aria-label="График расходов по месяцам"
+            >
+              <title>Расходы по месяцам</title>
+              {monthlyTotals.map((m, i) => {
+                const h = maxMonth > 0 ? (m.total / maxMonth) * chartH : 0;
+                const x = barGap + i * (barW + barGap);
+                const y = chartH - h;
+                return (
+                  <g key={m.label + i}>
+                    <rect
+                      x={x}
+                      y={y}
+                      width={barW}
+                      height={Math.max(h, 0)}
+                      rx={2}
+                      className="fill-indigo-500 dark:fill-indigo-500 opacity-90"
+                    />
+                    <text
+                      x={x + barW / 2}
+                      y={chartH + 14}
+                      textAnchor="middle"
+                      className="fill-slate-500 text-[8px] font-sans"
+                    >
+                      {m.label}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
           </div>
 
           {totalByCategory.length > 0 && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-              <h3 className="text-slate-300 text-sm font-medium mb-3">По категориям</h3>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm dark:shadow-none">
+              <h3 className="text-slate-700 dark:text-slate-300 text-sm font-medium mb-3">По категориям</h3>
               <div className="space-y-2.5">
                 {totalByCategory.map(([cat, sum]) => (
                   <div key={cat}>
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-400">{EXPENSE_CATEGORY_LABELS[cat]}</span>
-                      <span className="text-white">{formatMoney(sum)}</span>
+                      <span className="text-slate-500 dark:text-slate-400">{EXPENSE_CATEGORY_LABELS[cat]}</span>
+                      <span className="text-slate-900 dark:text-white">{formatMoney(sum)}</span>
                     </div>
-                    <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-indigo-500 rounded-full"
                         style={{ width: `${(sum / maxCat) * 100}%` }}
@@ -180,11 +229,11 @@ export default function ExpensesClient({ expenses: initialExpenses }: { expenses
               {filtered.map((e) => (
                 <div
                   key={e.id}
-                  className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 flex items-center gap-3"
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm dark:shadow-none"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-white text-sm font-medium">{e.title}</span>
+                      <span className="text-slate-900 dark:text-white text-sm font-medium">{e.title}</span>
                       <span className={cn("text-xs px-2 py-0.5 rounded-full", CATEGORY_COLORS[e.category])}>
                         {EXPENSE_CATEGORY_LABELS[e.category]}
                       </span>
@@ -198,7 +247,7 @@ export default function ExpensesClient({ expenses: initialExpenses }: { expenses
                       {e.note && <span className="text-slate-600 text-xs truncate">· {e.note}</span>}
                     </div>
                   </div>
-                  <span className="text-white font-semibold text-sm flex-shrink-0">
+                  <span className="text-slate-900 dark:text-white font-semibold text-sm flex-shrink-0">
                     {formatMoney(e.amount, e.currency)}
                   </span>
                 </div>

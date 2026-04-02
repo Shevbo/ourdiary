@@ -71,7 +71,7 @@ export default function EventCard({
   }
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden hover:border-slate-700 transition-colors">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden hover:border-slate-300 dark:hover:border-slate-700 transition-colors shadow-sm dark:shadow-none">
       {event.imageUrl && (
         <div className="h-48 overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -85,17 +85,17 @@ export default function EventCard({
               {TYPE_ICONS[event.type]}
               {EVENT_TYPE_LABELS[event.type] ?? event.type}
             </span>
-            <span className="text-slate-500 text-xs">{formatDate(event.date)}</span>
+            <span className="text-slate-500 dark:text-slate-500 text-xs">{formatDate(event.date)}</span>
           </div>
-          <span className="text-slate-500 text-xs flex-shrink-0">
+          <span className="text-slate-500 dark:text-slate-500 text-xs flex-shrink-0">
             {event.author.name ?? event.author.id}
           </span>
         </div>
 
-        <h3 className="text-white font-semibold text-base mb-1 leading-snug">{event.title}</h3>
+        <h3 className="text-slate-900 dark:text-white font-semibold text-base mb-1 leading-snug">{event.title}</h3>
 
         {event.description && (
-          <p className="text-slate-400 text-sm leading-relaxed line-clamp-3 mb-3">
+          <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed line-clamp-3 mb-3">
             {event.description}
           </p>
         )}
@@ -117,7 +117,7 @@ export default function EventCard({
           </div>
         )}
 
-        <div className="flex items-center gap-3 pt-2 border-t border-slate-800">
+        <div className="flex items-center gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
           <button
             onClick={() => handleVote("UP")}
             disabled={voting}
@@ -125,7 +125,7 @@ export default function EventCard({
               "flex items-center gap-1.5 text-sm px-2.5 py-1.5 rounded-lg transition-colors",
               myVoteVal === "UP"
                 ? "bg-emerald-500/20 text-emerald-400"
-                : "text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10"
+                : "text-slate-500 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10"
             )}
           >
             <ThumbsUp className="w-4 h-4" />
@@ -138,13 +138,13 @@ export default function EventCard({
               "flex items-center gap-1.5 text-sm px-2.5 py-1.5 rounded-lg transition-colors",
               myVoteVal === "DOWN"
                 ? "bg-red-500/20 text-red-400"
-                : "text-slate-500 hover:text-red-400 hover:bg-red-500/10"
+                : "text-slate-500 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10"
             )}
           >
             <ThumbsDown className="w-4 h-4" />
             <span>{downCount}</span>
           </button>
-          <div className="flex items-center gap-1.5 text-slate-500 text-sm ml-auto">
+          <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-500 text-sm ml-auto">
             <MessageCircle className="w-4 h-4" />
             <span>{event._count.comments}</span>
           </div>
