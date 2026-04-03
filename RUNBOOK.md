@@ -97,6 +97,34 @@ npm start
 > На сервере перезапуск: **`pm2`** (процесс `ourdiary`) или user-unit **`OURDIARY_SYSTEMD_USER_UNIT`** при вызове `scripts/deploy.sh`.
 > Локально скрипт: **`scripts/deploy.sh`** (выполняется на hoster после `git pull`).
 
+## Внешний URL (ourdiary.shectory.ru)
+
+Архитектура **не меняется**: Next.js по-прежнему слушает **только** `127.0.0.1:3002` (PM2), Postgres и секреты остаются в **`.env` на сервере**. Снаружи появляются **DNS + nginx + TLS** и правильные URL в `.env`.
+
+1. **DNS**  
+   Запись **A** (или **AAAA**) для `ourdiary.shectory.ru` должна указывать на **тот IP, где будет терминироваться HTTPS** — обычно это тот же хост, где крутится приложение (**hoster**), если nginx стоит там же. Если nginx на **VDS**, а Node на hoster — A-запись на VDS, а в `proxy_pass` используйте **внутренний** адрес hoster (см. комментарий в примере конфига).
+
+2. **Nginx**  
+   Шаблон: **`scripts/nginx-ourdiary.shectory.ru.conf.example`** — один `location /` с `proxy_pass` на upstream `127.0.0.1:3002` и заголовками `Host`, `X-Forwarded-For`, `X-Forwarded-Proto` (как у портала в `CursorRPA/scripts/nginx-shectory-portal.conf`). Не выносите в отдельный `alias` только часть `/_next/static/`.
+
+3. **TLS**  
+   На машине с nginx: `sudo apt install certbot python3-certbot-nginx`, затем `sudo certbot --nginx -d ourdiary.shectory.ru`. Certbot допишет `listen 443 ssl` и редирект с HTTP при необходимости.
+
+4. **`.env` на сервере с приложением** (`~/ourdiary/.env`, в git не коммитить):
+
+   ```env
+   NEXTAUTH_URL="https://ourdiary.shectory.ru"
+   NEXT_PUBLIC_APP_URL="https://ourdiary.shectory.ru"
+   ```
+
+   Остальное (`DATABASE_URL`, `NEXTAUTH_SECRET`, `PORT=3002`, VAPID при необходимости) — без изменений, если не меняете секреты.
+
+5. **Перезапуск**  
+   После правки `.env`: `pm2 restart ourdiary` (или как у вас назван процесс).
+
+6. **Проверка**  
+   Открыть `https://ourdiary.shectory.ru/login`, войти. Если NextAuth ругается на host за прокси — свериться с актуальной документацией NextAuth для вашей версии (часто достаточно корректного `NEXTAUTH_URL` и `X-Forwarded-Proto`).
+
 ## Структура приложения
 
 | Маршрут | Описание |

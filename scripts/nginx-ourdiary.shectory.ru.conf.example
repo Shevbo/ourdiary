@@ -1,0 +1,41 @@
+# Пример: внешний URL https://ourdiary.shectory.ru → Next.js на 127.0.0.1:3002 (PM2).
+# Архитектура: приложение не меняет порт; терминация TLS и имя хоста — на nginx.
+#
+# Установка (на том хосте, куда указывает DNS A/AAAA для ourdiary.shectory.ru):
+#   sudo cp scripts/nginx-ourdiary.shectory.ru.conf.example /etc/nginx/sites-available/ourdiary.shectory.ru
+#   sudo ln -sf /etc/nginx/sites-available/ourdiary.shectory.ru /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#   sudo certbot --nginx -d ourdiary.shectory.ru
+#
+# Certbot добавит listen 443 ssl и при необходимости редирект с :80 на HTTPS.
+#
+# ВАЖНО: один location / на весь трафик (включая /_next/static/), без отдельного alias
+# на часть статики — иначе Next.js отдаёт 400 для CSS (см. nginx-shectory-portal.conf в CursorRPA).
+
+upstream ourdiary_next {
+    server 127.0.0.1:3002;
+    keepalive 8;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ourdiary.shectory.ru;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    location / {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://ourdiary_next;
+    }
+}
+
+# Если nginx на другой машине (например VDS), а Node на hoster — замените в upstream:
+#   server 10.x.x.x:3002;   # внутренний IP hoster (VPN / приватная сеть)
+# и откройте порт 3002 на hoster только для источника nginx.
