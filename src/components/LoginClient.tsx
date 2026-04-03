@@ -135,7 +135,18 @@ export default function LoginClient({ appVersion }: { appVersion: string }) {
           <div className="w-full max-w-sm">
             <div className="bg-white/90 dark:bg-white/5 backdrop-blur-sm border border-slate-200 dark:border-white/10 rounded-2xl p-8 shadow-xl dark:shadow-2xl">
               <h2 className="text-slate-900 dark:text-white text-xl font-semibold mb-2">Вход в систему</h2>
-              <p className="text-slate-600 dark:text-slate-400 text-sm mb-6">Единый каталог пользователей Shectory</p>
+              <p className="text-slate-600 dark:text-slate-400 text-sm mb-6">
+                Вход по учётке портала Shectory: тот же email и пароль, что на{" "}
+                <a
+                  href="https://shectory.ru/login"
+                  className="text-indigo-600 dark:text-indigo-400 underline hover:no-underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  shectory.ru
+                </a>{" "}
+                (на сервере должен быть задан <code className="text-xs">SHECTORY_AUTH_BRIDGE_SECRET</code>, см. RUNBOOK).
+              </p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>

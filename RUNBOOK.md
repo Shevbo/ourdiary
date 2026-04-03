@@ -31,7 +31,22 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY="..."
 VAPID_PRIVATE_KEY="..."
 # Контакт для VAPID (рекомендуется mailto:)
 VAPID_SUBJECT="mailto:admin@example.com"
+
+# Прод: единый каталог Shectory (логин как на shectory.ru)
+SHECTORY_AUTH_BRIDGE_SECRET="тот-же-секрет-что-на-портале"
+SHECTORY_PORTAL_URL="https://shectory.ru"
+AUTH_TRUST_HOST="true"
 ```
+
+### Единый вход Shectory (каталог портала)
+
+Если задан **`SHECTORY_AUTH_BRIDGE_SECRET`**, пароль проверяется на стороне портала (`POST /api/internal/verify-portal-credentials`), затем в локальной БД дневника выполняется **upsert** пользователя по email (роль синхронизируется с `portal_users.role`: `superadmin` → `SUPERADMIN`, `admin` → `ADMIN`, иначе `MEMBER`). Локальный `passwordHash` в дневнике для таких учёток не используется.
+
+1. Сгенерировать секрет: `openssl rand -hex 32`
+2. Добавить **одинаковое** значение в `.env` портала на VDS (`shectory-portal`) и в `.env` нашего дневника на hoster.
+3. Перезапустить портал и процесс ourdiary (PM2).
+
+Без секрета дневник по-прежнему пускает только локальные учётки из своей БД (удобно для dev).
 
 ## Миграции базы данных
 
