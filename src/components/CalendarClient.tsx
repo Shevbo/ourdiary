@@ -1,9 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
-import { format } from "date-fns";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Calendar as CalendarIcon,
+} from "lucide-react";
+import {
+  addDays,
+  addWeeks,
+  eachDayOfInterval,
+  endOfWeek,
+  format,
+  isSameDay,
+  parseISO,
+  startOfWeek,
+  subDays,
+  subWeeks,
+} from "date-fns";
 import { ru } from "date-fns/locale";
 import { cn, EVENT_TYPE_COLORS, EVENT_TYPE_LABELS } from "@/lib/utils";
 
@@ -14,6 +29,7 @@ type CalEvent = {
   date: string;
   endDate: string | null;
   description: string | null;
+  imageUrl: string | null;
   author: { id: string; name: string | null; avatarUrl: string | null };
   links: { id: string; label: string; url: string }[];
 };
@@ -28,184 +44,338 @@ const TYPE_DOTS: Record<string, string> = {
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
-export default function CalendarClient({
-  events,
-  year,
-  month,
-}: {
-  events: CalEvent[];
-  year: number;
-  month: number;
-}) {
-  const router = useRouter();
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
-
-  const firstDay = new Date(year, month - 1, 1);
-  const daysInMonth = new Date(year, month, 0).getDate();
-  // Monday-based: 0=Mon..6=Sun
-  let startDow = firstDay.getDay() - 1;
-  if (startDow < 0) startDow = 6;
-
-  const eventsByDay: Record<number, CalEvent[]> = {};
-  for (const ev of events) {
-    const d = new Date(ev.date).getDate();
-    if (!eventsByDay[d]) eventsByDay[d] = [];
-    eventsByDay[d].push(ev);
+function EventThumb({ url }: { url: string | null }) {
+  if (!url) {
+    return (
+      <div className="w-10 h-10 shrink-0 rounded-lg bg-slate-200 dark:bg-slate-700" aria-hidden />
+    );
   }
-
-  function navigate(delta: number) {
-    let newMonth = month + delta;
-    let newYear = year;
-    if (newMonth > 12) { newMonth = 1; newYear++; }
-    if (newMonth < 1) { newMonth = 12; newYear--; }
-    router.push(`/calendar?year=${newYear}&month=${newMonth}`);
-  }
-
-  const selectedEvents = selectedDay ? (eventsByDay[selectedDay] ?? []) : [];
-  const monthLabel = format(new Date(year, month - 1, 1), "LLLL yyyy", { locale: ru });
-
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-slate-900 dark:text-white text-2xl font-bold">Календарь</h1>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors"
+    <img
+      src={url}
+      alt=""
+      className="h-10 w-10 shrink-0 rounded-lg object-cover"
+      loading="lazy"
+    />
+  );
+}
+
+function EventMiniCard({ ev }: { ev: CalEvent }) {
+  return (
+    <div className="rounded-lg border border-slate-200/80 bg-white/90 p-2 text-left shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+      <div className="flex gap-2">
+        <EventThumb url={ev.imageUrl} />
+        <div className="min-w-0 flex-1">
+          <span
+            className={cn(
+              "mb-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-medium",
+              EVENT_TYPE_COLORS[ev.type]
+            )}
           >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <span className="text-slate-900 dark:text-white font-semibold capitalize min-w-36 text-center">{monthLabel}</span>
-          <button
-            type="button"
-            onClick={() => navigate(1)}
-            className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
+            {EVENT_TYPE_LABELS[ev.type]}
+          </span>
+          <p className="line-clamp-2 text-xs font-medium text-slate-900 dark:text-white">{ev.title}</p>
+          {ev.description && (
+            <p className="mt-0.5 line-clamp-2 text-[11px] text-slate-600 dark:text-slate-400">{ev.description}</p>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          {/* Weekday headers */}
-          <div className="grid grid-cols-7 mb-2">
-            {WEEKDAYS.map((d) => (
-              <div key={d} className="text-center text-slate-500 text-xs font-medium py-2">{d}</div>
-            ))}
-          </div>
-          {/* Days grid */}
-          <div className="grid grid-cols-7 gap-1">
-            {Array.from({ length: startDow }).map((_, i) => (
-              <div key={`empty-${i}`} />
-            ))}
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const dayEvents = eventsByDay[day] ?? [];
-              const today = new Date();
-              const isToday =
-                today.getFullYear() === year &&
-                today.getMonth() + 1 === month &&
-                today.getDate() === day;
-              const isSelected = selectedDay === day;
-
-              return (
-                <button
-                  key={day}
-                  onClick={() => setSelectedDay(isSelected ? null : day)}
-                  className={cn(
-                    "relative aspect-square flex flex-col items-center justify-start pt-1.5 rounded-lg text-sm transition-colors min-h-[44px] sm:min-h-0",
-                    isSelected
-                      ? "bg-indigo-600 text-white shadow-md"
-                      : isToday
-                      ? "bg-indigo-100 dark:bg-slate-700 text-indigo-900 dark:text-white ring-1 ring-indigo-300 dark:ring-slate-600"
-                      : "text-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800"
-                  )}
+function EventDayCard({ ev }: { ev: CalEvent }) {
+  return (
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
+      <div className="flex gap-4">
+        {ev.imageUrl ? (
+          <img
+            src={ev.imageUrl}
+            alt=""
+            className="h-24 w-24 shrink-0 rounded-xl object-cover sm:h-28 sm:w-28"
+            loading="lazy"
+          />
+        ) : (
+          <div className="h-24 w-24 shrink-0 rounded-xl bg-slate-200 dark:bg-slate-800 sm:h-28 sm:w-28" />
+        )}
+        <div className="min-w-0 flex-1">
+          <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", EVENT_TYPE_COLORS[ev.type])}>
+            {EVENT_TYPE_LABELS[ev.type]}
+          </span>
+          <h3 className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{ev.title}</h3>
+          {ev.description && (
+            <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-400">{ev.description}</p>
+          )}
+          {ev.links.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {ev.links.map((l) => (
+                <a
+                  key={l.id}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
-                  <span className={cn("font-medium", isToday && !isSelected && "text-indigo-700 dark:text-indigo-300")}>
-                    {day}
-                  </span>
-                  {dayEvents.length > 0 && (
-                    <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center">
-                      {dayEvents.slice(0, 3).map((ev) => (
-                        <span
-                          key={ev.id}
-                          className={cn("w-1.5 h-1.5 rounded-full", TYPE_DOTS[ev.type] ?? "bg-slate-400")}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Legend */}
-          <div className="flex flex-wrap gap-3 mt-4">
-            {Object.entries(TYPE_DOTS).map(([type, dot]) => (
-              <div key={type} className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
-                <span className={cn("w-2 h-2 rounded-full", dot)} />
-                {EVENT_TYPE_LABELS[type]}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Day detail */}
-        <div className="lg:col-span-1">
-          {selectedDay ? (
-            <div>
-              <h2 className="text-slate-900 dark:text-white font-semibold mb-3">
-                {selectedDay} {format(new Date(year, month - 1, 1), "MMMM", { locale: ru })}
-              </h2>
-              {selectedEvents.length === 0 ? (
-                <p className="text-slate-500 dark:text-slate-500 text-sm">Нет событий в этот день</p>
-              ) : (
-                <div className="space-y-3">
-                  {selectedEvents.map((ev) => (
-                    <div
-                      key={ev.id}
-                      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm dark:shadow-none"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", EVENT_TYPE_COLORS[ev.type])}>
-                          {EVENT_TYPE_LABELS[ev.type]}
-                        </span>
-                      </div>
-                      <p className="text-slate-900 dark:text-white text-sm font-medium">{ev.title}</p>
-                      {ev.description && (
-                        <p className="text-slate-600 dark:text-slate-400 text-xs mt-1 line-clamp-2">{ev.description}</p>
-                      )}
-                      {ev.links.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {ev.links.map((l) => (
-                            <a
-                              key={l.id}
-                              href={l.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300"
-                            >
-                              {l.label}
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-slate-500 dark:text-slate-500 text-sm">
-              <Calendar className="w-8 h-8 mb-2 opacity-40" />
-              <p>Выберите день для просмотра событий</p>
-              <p className="mt-3 text-xs">Всего событий в месяце: {events.length}</p>
+                  {l.label}
+                </a>
+              ))}
             </div>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+export default function CalendarClient({
+  events,
+  year,
+  month,
+  view,
+  anchorDateISO,
+}: {
+  events: CalEvent[];
+  view: "month" | "week" | "day";
+  year: number;
+  month: number;
+  anchorDateISO: string;
+}) {
+  const router = useRouter();
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const anchor = parseISO(anchorDateISO);
+
+  const eventsByDayOfMonth = useMemo(() => {
+    const map: Record<number, CalEvent[]> = {};
+    for (const ev of events) {
+      const d = new Date(ev.date).getDate();
+      if (!map[d]) map[d] = [];
+      map[d].push(ev);
+    }
+    return map;
+  }, [events]);
+
+  function navigateMonth(delta: number) {
+    const d = new Date(year, month - 1 + delta, 1);
+    router.push(`/calendar?view=month&year=${d.getFullYear()}&month=${d.getMonth() + 1}`);
+  }
+
+  function navigateWeek(delta: number) {
+    const next = delta > 0 ? addWeeks(anchor, 1) : subWeeks(anchor, 1);
+    router.push(`/calendar?view=week&date=${format(next, "yyyy-MM-dd")}`);
+  }
+
+  function navigateDay(delta: number) {
+    const next = delta > 0 ? addDays(anchor, 1) : subDays(anchor, 1);
+    router.push(`/calendar?view=day&date=${format(next, "yyyy-MM-dd")}`);
+  }
+
+  function setView(next: "month" | "week" | "day") {
+    if (next === "month") {
+      router.push(`/calendar?view=month&year=${year}&month=${month}`);
+    } else {
+      router.push(`/calendar?view=${next}&date=${format(anchor, "yyyy-MM-dd")}`);
+    }
+  }
+
+  const monthLabel = format(new Date(year, month - 1, 1), "LLLL yyyy", { locale: ru });
+  const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(anchor, { weekStartsOn: 1 });
+  const weekLabel = `${format(weekStart, "d MMM", { locale: ru })} — ${format(weekEnd, "d MMM yyyy", { locale: ru })}`;
+  const dayLabel = format(anchor, "EEEE, d MMMM yyyy", { locale: ru });
+
+  const firstDay = new Date(year, month - 1, 1);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let startDow = firstDay.getDay() - 1;
+  if (startDow < 0) startDow = 6;
+
+  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+
+  const selectedEvents = selectedDay ? (eventsByDayOfMonth[selectedDay] ?? []) : [];
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Календарь</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          {(["month", "week", "day"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setView(v)}
+              className={cn(
+                "rounded-lg px-3 py-2 text-sm font-medium transition-colors min-h-11 sm:min-h-0",
+                view === v
+                  ? "bg-indigo-600 text-white"
+                  : "bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              )}
+            >
+              {v === "month" ? "Месяц" : v === "week" ? "Неделя" : "День"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            if (view === "month") navigateMonth(-1);
+            else if (view === "week") navigateWeek(-1);
+            else navigateDay(-1);
+          }}
+          className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <span className="min-w-0 flex-1 text-center font-semibold capitalize text-slate-900 dark:text-white">
+          {view === "month" && monthLabel}
+          {view === "week" && weekLabel}
+          {view === "day" && dayLabel}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            if (view === "month") navigateMonth(1);
+            else if (view === "week") navigateWeek(1);
+            else navigateDay(1);
+          }}
+          className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      </div>
+
+      {view === "month" && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <div className="mb-2 grid grid-cols-7">
+              {WEEKDAYS.map((d) => (
+                <div key={d} className="py-2 text-center text-xs font-medium text-slate-500">
+                  {d}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: startDow }).map((_, i) => (
+                <div key={`empty-${i}`} />
+              ))}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const dayEvents = eventsByDayOfMonth[day] ?? [];
+                const today = new Date();
+                const isToday =
+                  today.getFullYear() === year &&
+                  today.getMonth() + 1 === month &&
+                  today.getDate() === day;
+                const isSelected = selectedDay === day;
+
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => setSelectedDay(isSelected ? null : day)}
+                    className={cn(
+                      "relative flex min-h-[44px] flex-col items-center justify-start rounded-lg pt-1.5 text-sm transition-colors sm:aspect-square sm:min-h-0",
+                      isSelected
+                        ? "bg-indigo-600 text-white shadow-md"
+                        : isToday
+                          ? "bg-indigo-100 text-indigo-900 ring-1 ring-indigo-300 dark:bg-slate-700 dark:text-white dark:ring-slate-600"
+                          : "text-slate-800 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+                    )}
+                  >
+                    <span className={cn("font-medium", isToday && !isSelected && "text-indigo-700 dark:text-indigo-300")}>
+                      {day}
+                    </span>
+                    {dayEvents.length > 0 && (
+                      <div className="mt-0.5 flex flex-wrap justify-center gap-0.5">
+                        {dayEvents.slice(0, 3).map((ev) => (
+                          <span
+                            key={ev.id}
+                            className={cn("h-1.5 w-1.5 rounded-full", TYPE_DOTS[ev.type] ?? "bg-slate-400")}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              {Object.entries(TYPE_DOTS).map(([type, dot]) => (
+                <div key={type} className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                  <span className={cn("h-2 w-2 rounded-full", dot)} />
+                  {EVENT_TYPE_LABELS[type]}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="lg:col-span-1">
+            {selectedDay ? (
+              <div>
+                <h2 className="mb-3 font-semibold text-slate-900 dark:text-white">
+                  {selectedDay} {format(new Date(year, month - 1, 1), "MMMM", { locale: ru })}
+                </h2>
+                {selectedEvents.length === 0 ? (
+                  <p className="text-sm text-slate-500">Нет событий в этот день</p>
+                ) : (
+                  <div className="space-y-3">
+                    {selectedEvents.map((ev) => (
+                      <EventMiniCard key={ev.id} ev={ev} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm text-slate-500">
+                <CalendarIcon className="mb-2 h-8 w-8 opacity-40" />
+                <p>Выберите день для просмотра событий</p>
+                <p className="mt-3 text-xs">Всего событий в месяце: {events.length}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {view === "week" && (
+        <div className="overflow-x-auto pb-2">
+          <div className="grid min-w-[720px] grid-cols-7 gap-2">
+            {weekDays.map((day) => {
+              const dayEvents = events.filter((ev) => isSameDay(parseISO(ev.date), day));
+              return (
+                <div
+                  key={day.toISOString()}
+                  className="flex min-h-[280px] flex-col rounded-xl border border-slate-200 bg-slate-50/80 p-2 dark:border-slate-800 dark:bg-slate-900/40"
+                >
+                  <div className="mb-2 border-b border-slate-200 pb-2 text-center dark:border-slate-700">
+                    <div className="text-[10px] font-medium uppercase text-slate-500">
+                      {format(day, "EEE", { locale: ru })}
+                    </div>
+                    <div className="text-lg font-bold text-slate-900 dark:text-white">{format(day, "d")}</div>
+                  </div>
+                  <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
+                    {dayEvents.length === 0 ? (
+                      <p className="text-center text-[11px] text-slate-500">—</p>
+                    ) : (
+                      dayEvents.map((ev) => <EventMiniCard key={ev.id} ev={ev} />)
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {view === "day" && (
+        <div className="space-y-4">
+          {events.length === 0 ? (
+            <p className="text-center text-slate-500">Нет событий в этот день</p>
+          ) : (
+            events.map((ev) => <EventDayCard key={ev.id} ev={ev} />)
+          )}
+        </div>
+      )}
     </div>
   );
 }

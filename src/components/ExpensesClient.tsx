@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Plus, X, DollarSign } from "lucide-react";
+import dynamic from "next/dynamic";
+import { useState, useMemo, useCallback } from "react";
+import { Plus, X, DollarSign, QrCode } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -19,6 +20,8 @@ type Expense = {
 };
 
 const CATEGORIES = Object.entries(EXPENSE_CATEGORY_LABELS);
+
+const ReceiptQrScanner = dynamic(() => import("./ReceiptQrScanner"), { ssr: false });
 
 const CATEGORY_COLORS: Record<string, string> = {
   FOOD: "bg-orange-500/20 text-orange-400",
@@ -53,6 +56,7 @@ export default function ExpensesClient({
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showQrScanner, setShowQrScanner] = useState(false);
 
   const filtered = useMemo(() => {
     let list = initialExpenses;
@@ -83,6 +87,33 @@ export default function ExpensesClient({
   const chartH = 120;
   const barGap = 4;
   const barW = (chartW - barGap * (monthlyTotals.length + 1)) / monthlyTotals.length;
+
+  const importFromReceipt = useCallback(
+    async (raw: string) => {
+      setError("");
+      setLoading(true);
+      try {
+        const res = await fetch("/api/expenses/from-receipt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ qrraw: raw }),
+        });
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          setError(d.error ?? "Не удалось импортировать чек");
+          return;
+        }
+        setShowQrScanner(false);
+        setShowForm(false);
+        router.refresh();
+      } catch {
+        setError("Ошибка соединения");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [router]
+  );
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
@@ -119,7 +150,7 @@ export default function ExpensesClient({
           className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors min-h-11 sm:min-h-0"
         >
           <Plus className="w-4 h-4" />
-          Добавить
+          Ввести расход
         </button>
       </div>
 
@@ -261,11 +292,22 @@ export default function ExpensesClient({
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between gap-2 px-6 py-4 border-b border-slate-200 dark:border-slate-800">
               <h2 className="text-slate-900 dark:text-white font-semibold text-lg">Новый расход</h2>
-              <button type="button" onClick={() => setShowForm(false)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white min-h-11 min-w-11 flex items-center justify-center sm:min-h-0 sm:min-w-0">
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setShowQrScanner(true)}
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0"
+                  title="Сканировать QR чека"
+                >
+                  <QrCode className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">QR чека</span>
+                </button>
+                <button type="button" onClick={() => setShowForm(false)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white min-h-11 min-w-11 flex items-center justify-center sm:min-h-0 sm:min-w-0">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
@@ -345,6 +387,13 @@ export default function ExpensesClient({
             </form>
           </div>
         </div>
+      )}
+
+      {showQrScanner && (
+        <ReceiptQrScanner
+          onDecoded={importFromReceipt}
+          onClose={() => setShowQrScanner(false)}
+        />
       )}
     </div>
   );
