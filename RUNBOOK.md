@@ -40,7 +40,7 @@ AUTH_TRUST_HOST="true"
 
 ### Единый вход Shectory (каталог портала)
 
-Если задан **`SHECTORY_AUTH_BRIDGE_SECRET`**, пароль проверяется на стороне портала (`POST /api/internal/verify-portal-credentials`), затем в локальной БД дневника выполняется **upsert** пользователя по email (роль синхронизируется с `portal_users.role`: `superadmin` → `SUPERADMIN`, `admin` → `ADMIN`, иначе `MEMBER`). Локальный `passwordHash` в дневнике для таких учёток не используется.
+Если задан **`SHECTORY_AUTH_BRIDGE_SECRET`**, **сначала** пароль проверяется в **общем каталоге Shectory** на портале (`POST /api/internal/verify-portal-credentials` → `portal_users`), затем в БД дневника выполняется **upsert** (роль: `superadmin` → `SUPERADMIN`, `admin` → `ADMIN`, иначе `MEMBER`). Если учётки в каталоге нет или пароль не подошёл к порталу, но в дневнике есть **локальный** `passwordHash` (например пользователь заведён в **админке дневника**), выполняется вход по этому паролю — так семейные учётки без дублирования в портале остаются рабочими. Источник истины для «портальных» пользователей — **shectory.ru**; локальный пароль — только для учёток без записи в `portal_users`.
 
 1. Сгенерировать секрет: `openssl rand -hex 32`
 2. Добавить **одинаковое** значение в `.env` портала на VDS (`shectory-portal`) и в `.env` нашего дневника на hoster.

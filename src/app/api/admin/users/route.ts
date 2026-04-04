@@ -40,14 +40,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Доступ запрещён" }, { status: 403 });
   }
 
-  const { email, name, password, role } = await req.json();
+  const body = await req.json();
+  const email = String(body.email ?? "")
+    .trim()
+    .toLowerCase();
+  const name = body.name != null ? String(body.name) : undefined;
+  const password = String(body.password ?? "");
+  const role = body.role != null ? String(body.role) : undefined;
+
   if (!email || !password) return NextResponse.json({ error: "email и password обязательны" }, { status: 400 });
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return NextResponse.json({ error: "Пользователь с таким email уже существует" }, { status: 409 });
 
-  const allowed = ["MEMBER", "ADMIN"];
-  const userRole = allowed.includes(role) ? role : "MEMBER";
+  const userRole = role === "ADMIN" ? "ADMIN" : "MEMBER";
 
   const passwordHash = await bcrypt.hash(password, 12);
   const user = await prisma.user.create({
