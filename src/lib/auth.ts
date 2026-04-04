@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { mapPortalRoleToOurdiary } from "./map-portal-role";
 import { verifyShectoryPortalCredentials } from "./shectory-portal-auth";
+import { findUserByEmailInsensitive } from "./user-by-email";
 
 function useShectoryPortalCatalog(): boolean {
   return Boolean(process.env.SHECTORY_AUTH_BRIDGE_SECRET?.trim());
@@ -28,19 +29,25 @@ async function authorizeWithPortalThenLocal(
   if (portal) {
     const role = mapPortalRoleToOurdiary(portal.role);
     const nameFromPortal = portal.fullName.trim() || null;
-    const u = await prisma.user.upsert({
-      where: { email: portal.email },
-      create: {
-        email: portal.email,
-        name: nameFromPortal,
-        passwordHash: null,
-        role,
-      },
-      update: {
-        role,
-        ...(nameFromPortal ? { name: nameFromPortal } : {}),
-      },
-    });
+    const emailLower = portal.email.trim().toLowerCase();
+    const existing = await findUserByEmailInsensitive(portal.email);
+    const u = existing
+      ? await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            email: emailLower,
+            role,
+            ...(nameFromPortal ? { name: nameFromPortal } : {}),
+          },
+        })
+      : await prisma.user.create({
+          data: {
+            email: emailLower,
+            name: nameFromPortal,
+            passwordHash: null,
+            role,
+          },
+        });
 
     return {
       id: u.id,
@@ -51,9 +58,7 @@ async function authorizeWithPortalThenLocal(
     };
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email },
-  });
+  const user = await findUserByEmailInsensitive(email);
   if (!user?.passwordHash) return null;
   const isValid = await bcrypt.compare(password, user.passwordHash);
   if (!isValid) return null;
@@ -90,9 +95,7 @@ export const authOptions: NextAuthOptions = {
           return authorizeWithPortalThenLocal(email, password);
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email },
-        });
+        const user = await findUserByEmailInsensitive(email);
 
         if (!user || !user.passwordHash) return null;
 

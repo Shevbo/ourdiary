@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { findUserByEmailInsensitive } from "@/lib/user-by-email";
 import bcrypt from "bcryptjs";
 
 function isAdminSession(role: string) {
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
 
   if (!email || !password) return NextResponse.json({ error: "email и password обязательны" }, { status: 400 });
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await findUserByEmailInsensitive(email);
   if (existing) return NextResponse.json({ error: "Пользователь с таким email уже существует" }, { status: 409 });
 
   const userRole = role === "ADMIN" ? "ADMIN" : "MEMBER";
