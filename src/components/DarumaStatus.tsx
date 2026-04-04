@@ -1,70 +1,106 @@
 "use client";
 
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-/** Условные иконки Дарумы по статусу мечты (п. 1.14.8). */
-export function DarumaIcon({
-  status,
-  className,
+const DARUMA_SRC = "/images/daruma-doll.png";
+
+/** Позиции зрачков относительно квадратного кадра 360×360 (традиция: сначас красят глаз справа у зрителя). */
+const EYE = {
+  /** Левый глаз зрителя (правый глаз куклы) — первым закрашивают при обещании */
+  first: "left-[61%] top-[34%]",
+  /** Правый глаз зрителя — второй */
+  second: "left-[39%] top-[34%]",
+} as const;
+
+function Pupils({
+  mode,
 }: {
+  mode: "none" | "first" | "both";
+}) {
+  const dot =
+    "absolute h-[11%] w-[11%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-neutral-950 shadow-[inset_0_-1px_0_rgba(255,255,255,0.15)]";
+  return (
+    <>
+      {(mode === "first" || mode === "both") && <span className={cn(dot, EYE.first)} aria-hidden />}
+      {mode === "both" && <span className={cn(dot, EYE.second)} aria-hidden />}
+    </>
+  );
+}
+
+type DarumaIconProps = {
   status: string;
   className?: string;
-}) {
-  const base = "inline-flex items-center justify-center rounded-full border-2 border-slate-700 bg-red-600 text-white";
-  const size = cn("h-14 w-14 shrink-0", className);
+};
+
+/** Кукла Дарума по статусу мечты (п. 1.14.8): белые глаза → один зрачок → оба; отложена/сброшена — тот же образ с фильтром. */
+export function DarumaIcon({ status, className }: DarumaIconProps) {
+  const frame = cn(
+    "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-black ring-1 ring-black/20 dark:ring-white/10",
+    "h-14 w-14",
+    className
+  );
 
   switch (status) {
     case "DRAFTING":
       return (
-        <span className={cn(base, size)} title="Формируется" aria-hidden>
-          <svg viewBox="0 0 48 48" className="h-10 w-10">
-            <circle cx="24" cy="24" r="18" fill="currentColor" opacity={0.9} />
-            <circle cx="17" cy="20" r="2.5" fill="#1e293b" opacity={0.15} />
-            <circle cx="31" cy="20" r="2.5" fill="#1e293b" opacity={0.15} />
-          </svg>
+        <span className={frame} title="Формируется">
+          <Image src={DARUMA_SRC} alt="" width={56} height={56} className="h-full w-full object-cover" sizes="56px" />
+          <Pupils mode="none" />
         </span>
       );
     case "ACTIVE":
       return (
-        <span className={cn(base, size)} title="Активная" aria-hidden>
-          <svg viewBox="0 0 48 48" className="h-10 w-10">
-            <circle cx="24" cy="24" r="18" fill="currentColor" opacity={0.9} />
-            <circle cx="17" cy="20" r="2.5" fill="#0f172a" />
-            <circle cx="31" cy="20" r="2.5" fill="#1e293b" opacity={0.2} />
-          </svg>
+        <span className={frame} title="Активная">
+          <Image src={DARUMA_SRC} alt="" width={56} height={56} className="h-full w-full object-cover" sizes="56px" />
+          <Pupils mode="first" />
         </span>
       );
     case "FULFILLED":
       return (
-        <span className={cn(base, size, "relative")} title="Сбылась" aria-hidden>
-          <svg viewBox="0 0 48 48" className="h-10 w-10">
-            <circle cx="24" cy="24" r="18" fill="currentColor" opacity={0.9} />
-            <circle cx="17" cy="20" r="2.5" fill="#0f172a" />
-            <circle cx="31" cy="20" r="2.5" fill="#0f172a" />
-            <path d="M24 32 L28 36 L34 28" stroke="#fbbf24" strokeWidth="2" fill="none" />
-          </svg>
+        <span className={frame} title="Сбылась">
+          <Image src={DARUMA_SRC} alt="" width={56} height={56} className="h-full w-full object-cover" sizes="56px" />
+          <Pupils mode="both" />
         </span>
       );
     case "POSTPONED":
       return (
-        <span className={cn("inline-flex h-14 w-14 items-center justify-center text-amber-800 dark:text-amber-200", className)} title="Отложена" aria-hidden>
-          <svg viewBox="0 0 48 48" className="h-12 w-12">
-            <rect x="8" y="14" width="32" height="24" rx="3" fill="currentColor" opacity={0.35} />
-            <rect x="10" y="16" width="28" height="8" rx="1" fill="currentColor" opacity={0.5} />
-          </svg>
+        <span className={frame} title="Отложена">
+          <Image
+            src={DARUMA_SRC}
+            alt=""
+            width={56}
+            height={56}
+            className="h-full w-full object-cover saturate-[0.65] opacity-95"
+            sizes="56px"
+          />
+          <span className="pointer-events-none absolute inset-0 bg-amber-400/15 mix-blend-overlay" aria-hidden />
+          <Pupils mode="none" />
         </span>
       );
     case "DROPPED":
       return (
-        <span className={cn("inline-flex h-14 w-14 items-center justify-center text-slate-600", className)} title="Сброшена" aria-hidden>
-          <svg viewBox="0 0 48 48" className="h-12 w-12">
-            <rect x="10" y="12" width="28" height="30" rx="3" fill="none" stroke="currentColor" strokeWidth="2" />
-            <path d="M16 18h16M16 24h12" stroke="currentColor" strokeWidth="2" />
-          </svg>
+        <span className={frame} title="Сброшена">
+          <Image
+            src={DARUMA_SRC}
+            alt=""
+            width={56}
+            height={56}
+            className="h-full w-full object-cover grayscale opacity-[0.72]"
+            sizes="56px"
+          />
+          <span className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
+            <span className="h-[2.5px] w-[130%] rotate-45 rounded-full bg-white/60 shadow-sm" />
+          </span>
         </span>
       );
     default:
-      return <span className={cn(base, size)}>?</span>;
+      return (
+        <span className={frame}>
+          <Image src={DARUMA_SRC} alt="" width={56} height={56} className="h-full w-full object-cover opacity-80" sizes="56px" />
+          <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow">?</span>
+        </span>
+      );
   }
 }
 
