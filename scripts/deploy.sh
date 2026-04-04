@@ -21,12 +21,13 @@ echo "dir: $ROOT branch: $BRANCH"
 
 git fetch origin
 git checkout "$BRANCH"
-git pull --ff-only "origin/$BRANCH" || git pull "origin" "$BRANCH"
+git pull --ff-only origin "$BRANCH"
 
+# Next.js + Tailwind: PostCSS/tailwind в devDependencies — нужны на этапе `next build`.
 if [[ -f package-lock.json ]]; then
-  npm ci --omit=dev
+  npm ci
 else
-  npm install --omit=dev
+  npm install
 fi
 
 npx prisma migrate deploy
