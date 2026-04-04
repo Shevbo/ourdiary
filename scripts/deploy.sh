@@ -24,10 +24,11 @@ git checkout "$BRANCH"
 git pull --ff-only origin "$BRANCH"
 
 # Next.js + Tailwind: PostCSS/tailwind в devDependencies — нужны на этапе `next build`.
+# На сервере часто NODE_ENV=production → npm ci отрезает devDeps; для сборки принудительно включаем.
 if [[ -f package-lock.json ]]; then
-  npm ci
+  NODE_ENV=development npm ci
 else
-  npm install
+  NODE_ENV=development npm install
 fi
 
 npx prisma migrate deploy
