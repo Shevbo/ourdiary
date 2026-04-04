@@ -21,6 +21,7 @@ model User {
   monthlyBudgetByCategory Json?
   /// Ручная корректировка сембонов (к сумме из рейтинга)
   sembonManualAdjust Int     @default(0)
+  bioNote       String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -34,6 +35,9 @@ model User {
   tasksDone     Task[]    @relation("TaskCompleter")
   ratingPoints  RatingPoint[]
   pushSubscriptions PushSubscription[]
+  dreamsAuthored Dream[]       @relation("DreamAuthor")
+  dreamSupports  DreamSupport[] @relation("DreamSupporter")
+  notifications  Notification[]
 
   @@map("users")
 }
@@ -231,4 +235,71 @@ model PushSubscription {
   createdAt DateTime @default(now())
 
   @@map("push_subscriptions")
+}
+
+// ─── Мечты («Воплоти мечту») ─────────────────────────────────────────────────
+
+model Dream {
+  id         String      @id @default(cuid())
+  orderNo    Int
+  shortTitle String
+  /// Текст с переносами; при необходимости позже подключим rich editor
+  bodyRich   String      @db.Text
+  status     DreamStatus @default(DRAFTING)
+  authorId   String
+  author     User        @relation("DreamAuthor", fields: [authorId], references: [id])
+  supports   DreamSupport[]
+  /// Когда все строки поддержки получили ответ — правки только у суперадмина
+  lockedAt   DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([authorId])
+  @@map("dreams")
+}
+
+enum DreamStatus {
+  DRAFTING
+  ACTIVE
+  FULFILLED
+  POSTPONED
+  DROPPED
+}
+
+model DreamSupport {
+  id               String               @id @default(cuid())
+  dreamId          String
+  dream            Dream                @relation(fields: [dreamId], references: [id], onDelete: Cascade)
+  supporterId      String
+  supporter        User                 @relation("DreamSupporter", fields: [supporterId], references: [id])
+  requestedSembons Int
+  agreedSembons    Int?
+  responseStatus   DreamSupportResponse @default(PENDING)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@unique([dreamId, supporterId])
+  @@map("dream_supports")
+}
+
+enum DreamSupportResponse {
+  PENDING
+  DECLINED
+  AGREED
+}
+
+// ─── Уведомления (в т.ч. по мечтам) ─────────────────────────────────────────
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  linkUrl   String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@map("notifications")
 }

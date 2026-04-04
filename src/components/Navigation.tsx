@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 import {
   BookHeart,
   Calendar,
@@ -13,6 +14,7 @@ import {
   LogOut,
   Shield,
   User,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,14 +23,26 @@ const navItems = [
   { href: "/calendar", label: "Календарь", icon: Calendar },
   { href: "/expenses", label: "Расходы", icon: Wallet },
   { href: "/tasks", label: "Задачи", icon: CheckSquare },
+  { href: "/dreams", label: "Мечты", icon: Sparkles },
   { href: "/rating", label: "Сембон", icon: Star },
   { href: "/tv", label: "TV", icon: Tv },
 ];
 
 export default function Navigation() {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "SUPERADMIN";
+  const [cabinetUnread, setCabinetUnread] = useState(0);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    void (async () => {
+      const res = await fetch("/api/me");
+      if (!res.ok) return;
+      const data = (await res.json()) as { unreadNotifications?: number };
+      setCabinetUnread(data.unreadNotifications ?? 0);
+    })();
+  }, [status, pathname]);
 
   return (
     <>
@@ -51,7 +65,14 @@ export default function Navigation() {
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
             )}
           >
-            <User className="w-4 h-4 flex-shrink-0" />
+            <span className="relative flex-shrink-0">
+              <User className="w-4 h-4" />
+              {cabinetUnread > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[1rem] h-4 px-0.5 rounded-full bg-rose-500 text-white text-[10px] leading-4 text-center font-semibold">
+                  {cabinetUnread > 99 ? "99+" : cabinetUnread}
+                </span>
+              )}
+            </span>
             Кабинет
           </Link>
           {navItems.map(({ href, label, icon: Icon }) => (

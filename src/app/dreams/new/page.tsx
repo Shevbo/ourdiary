@@ -1,13 +1,13 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import MeClient from "@/components/MeClient";
+import DreamNewForm from "@/components/DreamNewForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function MePage() {
+export default async function DreamNewPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  return <MeClient />;
+  return <DreamNewForm />;
 }
