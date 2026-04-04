@@ -71,10 +71,12 @@ export async function POST(req: NextRequest) {
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
       links: true,
+      _count: { select: { comments: true, votes: true } },
+      votes: { where: { userId: session.user.id } },
     },
   });
 
-  // Начислить рейтинговые очки за создание события
+  // Начислить сембоны за создание события
   await prisma.ratingPoint.create({
     data: {
       userId: session.user.id,

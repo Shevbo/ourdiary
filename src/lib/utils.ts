@@ -25,11 +25,13 @@ export function formatRelative(date: Date | string): string {
   return formatDistanceToNow(d, { addSuffix: true, locale: ru });
 }
 
+/** Сумма в рублях без символа доллара (только ₽ для RUB). */
 export function formatMoney(amount: number | string, currency = "RUB"): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
     currency,
+    currencyDisplay: "narrowSymbol",
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(num);

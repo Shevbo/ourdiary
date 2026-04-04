@@ -16,7 +16,11 @@ export default async function ExpensesPage() {
 
   const [expenses, forChart] = await Promise.all([
     prisma.expense.findMany({
-      include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+      include: {
+        author: { select: { id: true, name: true, avatarUrl: true } },
+        beneficiaryUser: { select: { id: true, name: true } },
+        place: true,
+      },
       orderBy: { date: "desc" },
     }),
     prisma.expense.findMany({
@@ -50,5 +54,12 @@ export default async function ExpensesPage() {
     });
   }
 
-  return <ExpensesClient expenses={serialized} monthlyTotals={monthlyTotals} />;
+  return (
+    <ExpensesClient
+      expenses={serialized}
+      monthlyTotals={monthlyTotals}
+      currentUserId={session.user.id}
+      currentUserRole={session.user.role}
+    />
+  );
 }

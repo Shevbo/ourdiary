@@ -28,6 +28,7 @@ export default async function RatingPage() {
       id: true,
       name: true,
       avatarUrl: true,
+      sembonManualAdjust: true,
       ratingPoints: {
         select: { id: true, points: true, type: true, reason: true, createdAt: true },
         orderBy: { createdAt: "desc" },
@@ -48,7 +49,8 @@ export default async function RatingPage() {
       id: u.id,
       name: u.name,
       avatarUrl: u.avatarUrl,
-      totalPoints: u.ratingPoints.reduce((s: number, p: { points: number }) => s + p.points, 0),
+      totalPoints:
+        u.ratingPoints.reduce((s: number, p: { points: number }) => s + p.points, 0) + u.sembonManualAdjust,
       history: u.ratingPoints.slice(0, 10),
     }))
     .sort((a: LeaderEntry, b: LeaderEntry) => b.totalPoints - a.totalPoints);
@@ -61,9 +63,12 @@ export default async function RatingPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <Star className="w-6 h-6 text-amber-500 dark:text-yellow-400" />
-        <h1 className="text-slate-900 dark:text-white text-2xl font-bold">Рейтинг семьянина</h1>
+        <div>
+          <h1 className="text-slate-900 dark:text-white text-2xl font-bold">Сембон</h1>
+          <p className="text-slate-500 dark:text-slate-500 text-sm">Семейный бонус</p>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -97,7 +102,7 @@ export default async function RatingPage() {
               </div>
               <div className="text-right flex-shrink-0">
                 <p className="text-amber-600 dark:text-yellow-400 font-bold text-xl">{user.totalPoints}</p>
-                <p className="text-slate-500 text-xs">очков</p>
+                <p className="text-slate-500 text-xs">сембонов</p>
               </div>
             </div>
 
@@ -129,7 +134,7 @@ export default async function RatingPage() {
         {leaderboard.length === 0 && (
           <div className="text-center py-16 text-slate-500 dark:text-slate-500">
             <Star className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p>Пока нет участников с очками</p>
+            <p>Пока нет участников с сембонами</p>
           </div>
         )}
       </div>

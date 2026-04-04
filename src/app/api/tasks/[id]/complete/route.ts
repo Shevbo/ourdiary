@@ -12,12 +12,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (task.status === "DONE") return NextResponse.json({ error: "Уже выполнено" }, { status: 400 });
 
+  const role = session.user.role;
+  const isAdmin = role === "ADMIN" || role === "SUPERADMIN";
+  const isAssignee = task.assigneeId === session.user.id;
+  const universal = task.assigneeId == null;
+  const canComplete = isAdmin || isAssignee || universal;
+  if (!canComplete) {
+    return NextResponse.json({ error: "Выполнить может только администратор, исполнитель или любой член семьи, если исполнитель не назначен" }, { status: 403 });
+  }
+
   const updated = await prisma.task.update({
     where: { id },
     data: {
       status: "DONE",
       completedBy: session.user.id,
       completedAt: new Date(),
+    },
+    include: {
+      completer: { select: { id: true, name: true, avatarUrl: true } },
     },
   });
 

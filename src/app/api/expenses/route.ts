@@ -25,7 +25,11 @@ export async function GET(req: NextRequest) {
   const [expenses, byCategory] = await Promise.all([
     prisma.expense.findMany({
       where,
-      include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+      include: {
+        author: { select: { id: true, name: true, avatarUrl: true } },
+        beneficiaryUser: { select: { id: true, name: true } },
+        place: true,
+      },
       orderBy: { date: "desc" },
     }),
     prisma.expense.groupBy({
@@ -50,7 +54,7 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
 
   const body = await req.json();
-  const { title, amount, category, date, note, currency } = body;
+  const { title, amount, category, date, note, currency, beneficiary, beneficiaryUserId, placeId } = body;
 
   if (!title || !amount) {
     return NextResponse.json({ error: "title и amount обязательны" }, { status: 400 });
@@ -65,8 +69,15 @@ export async function POST(req: NextRequest) {
       note,
       currency: currency ?? "RUB",
       authorId: session.user.id,
+      beneficiary: beneficiary ?? "FAMILY",
+      beneficiaryUserId: beneficiaryUserId || undefined,
+      placeId: placeId || undefined,
     },
-    include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+    include: {
+      author: { select: { id: true, name: true, avatarUrl: true } },
+      beneficiaryUser: { select: { id: true, name: true } },
+      place: true,
+    },
   });
 
   await prisma.ratingPoint.create({

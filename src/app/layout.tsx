@@ -11,7 +11,7 @@ const geistSans = Geist({
 
 export const metadata: Metadata = {
   title: "Наш дневник",
-  description: "Семейная социальная сеть — лента событий, календарь, расходы, рейтинг",
+  description: "Семейная социальная сеть — лента событий, календарь, расходы, сембон",
 };
 
 export const viewport: Viewport = {

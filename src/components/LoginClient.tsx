@@ -9,7 +9,7 @@ import { BookHeart, Calendar, DollarSign, Star, CheckSquare, Tv } from "lucide-r
 export default function LoginClient({ appVersion }: { appVersion: string }) {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const [email, setEmail] = useState("");
+  const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,12 +26,12 @@ export default function LoginClient({ appVersion }: { appVersion: string }) {
     setLoading(true);
     try {
       const result = await signIn("credentials", {
-        email,
+        loginName,
         password,
         redirect: false,
       });
       if (result?.error) {
-        setError("Неверный email или пароль");
+        setError("Неверное имя для входа или пароль");
       } else {
         router.replace("/");
       }
@@ -86,8 +86,8 @@ export default function LoginClient({ appVersion }: { appVersion: string }) {
             </div>
 
             <p className="text-slate-700 dark:text-slate-300 text-lg leading-relaxed mb-10">
-              Место, где семья живёт вместе — отмечает события, планирует будущее, следит за расходами и растёт в
-              рейтинге семьянина.
+              Место, где семья живёт вместе — отмечает события, планирует будущее, следит за расходами и копит
+              сембоны.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -117,8 +117,8 @@ export default function LoginClient({ appVersion }: { appVersion: string }) {
               />
               <FeatureCard
                 icon={<Star className="w-5 h-5 text-purple-500 dark:text-purple-400" />}
-                title="Рейтинг семьянина"
-                desc="Бонусные очки за активность, выполнение обязанностей"
+                title="Сембон"
+                desc="Семейный бонус за активность и участие"
                 color="purple"
               />
               <FeatureCard
@@ -136,7 +136,8 @@ export default function LoginClient({ appVersion }: { appVersion: string }) {
             <div className="bg-white/90 dark:bg-white/5 backdrop-blur-sm border border-slate-200 dark:border-white/10 rounded-2xl p-8 shadow-xl dark:shadow-2xl">
               <h2 className="text-slate-900 dark:text-white text-xl font-semibold mb-2">Вход в систему</h2>
               <p className="text-slate-600 dark:text-slate-400 text-sm mb-6">
-                Вход по учётке портала Shectory: тот же email и пароль, что на{" "}
+                Вход по <strong>имени для входа</strong> (как в профиле) и паролю. С мостом портала Shectory — тот же
+                пароль, что на{" "}
                 <a
                   href="https://shectory.ru/login"
                   className="text-indigo-600 dark:text-indigo-400 underline hover:no-underline"
@@ -151,15 +152,15 @@ export default function LoginClient({ appVersion }: { appVersion: string }) {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">
-                    Email
+                    Имя для входа
                   </label>
                   <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type="text"
+                    value={loginName}
+                    onChange={(e) => setLoginName(e.target.value)}
                     required
-                    placeholder="ваш@email.ru"
-                    autoComplete="email"
+                    placeholder="например, bshevelev"
+                    autoComplete="username"
                     className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                   />
                 </div>

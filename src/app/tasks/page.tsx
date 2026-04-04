@@ -15,6 +15,7 @@ export default async function TasksPage() {
       include: {
         assignee: { select: { id: true, name: true, avatarUrl: true } },
         completer: { select: { id: true, name: true, avatarUrl: true } },
+        author: { select: { id: true, name: true, avatarUrl: true } },
       },
       orderBy: [{ status: "asc" }, { dueDate: "asc" }],
     }),

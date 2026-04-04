@@ -27,6 +27,7 @@ export default async function TvPage() {
         id: true,
         name: true,
         avatarUrl: true,
+        sembonManualAdjust: true,
         ratingPoints: { select: { points: true } },
       },
     }),
@@ -49,7 +50,8 @@ export default async function TvPage() {
       id: u.id,
       name: u.name,
       avatarUrl: u.avatarUrl,
-      points: u.ratingPoints.reduce((s: number, p: { points: number }) => s + p.points, 0),
+      points:
+        u.ratingPoints.reduce((s: number, p: { points: number }) => s + p.points, 0) + u.sembonManualAdjust,
     }))
     .sort((a: LeaderEntry, b: LeaderEntry) => b.points - a.points)
     .slice(0, 3);

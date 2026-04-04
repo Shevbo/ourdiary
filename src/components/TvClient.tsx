@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { BookHeart, Calendar, Trophy, DollarSign, Medal, Award } from "lucide-react";
+import { BookHeart, Calendar, Trophy, Wallet, Medal, Award } from "lucide-react";
 import { cn, EVENT_TYPE_LABELS, formatMoney } from "@/lib/utils";
 
 type TvData = {
@@ -135,7 +135,10 @@ export default function TvClient({ data }: { data: TvData }) {
                   <div className="flex-1 min-w-0">
                     <p className="text-white font-medium text-base">{u.name ?? "—"}</p>
                   </div>
-                  <span className="text-yellow-400 font-bold text-xl">{u.points}</span>
+                  <div className="text-right">
+                    <span className="text-yellow-400 font-bold text-xl">{u.points}</span>
+                    <span className="text-slate-500 text-xs ml-1">семб.</span>
+                  </div>
                 </div>
               ))}
               {data.leaderboard.length === 0 && (
@@ -146,7 +149,7 @@ export default function TvClient({ data }: { data: TvData }) {
 
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-3">
-              <DollarSign className="w-5 h-5 text-emerald-400" />
+              <Wallet className="w-5 h-5 text-emerald-400" />
               <h2 className="text-slate-200 font-semibold text-lg">Расходы</h2>
               <span className="text-slate-500 text-sm ml-auto capitalize">{data.monthLabel}</span>
             </div>

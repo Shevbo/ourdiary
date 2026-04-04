@@ -10,19 +10,27 @@ datasource db {
 
 model User {
   id            String    @id @default(cuid())
+  loginName     String    @unique
   email         String    @unique
   name          String?
   avatarUrl     String?
   passwordHash  String?
   role          UserRole  @default(MEMBER)
+  isServiceUser Boolean   @default(false)
+  /// JSON: { "FOOD": 10000, "TRANSPORT": 5000, ... } лимиты в месяц по категориям (копейки/рубли — как решит фронт)
+  monthlyBudgetByCategory Json?
+  /// Ручная корректировка сембонов (к сумме из рейтинга)
+  sembonManualAdjust Int     @default(0)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   events        Event[]
   comments      Comment[]
   expenses      Expense[]
+  expensesAsBeneficiary Expense[] @relation("ExpenseBeneficiary")
   votes         Vote[]
   tasks         Task[]    @relation("TaskAssignee")
+  tasksAuthored Task[]    @relation("TaskAuthor")
   tasksDone     Task[]    @relation("TaskCompleter")
   ratingPoints  RatingPoint[]
   pushSubscriptions PushSubscription[]
@@ -59,11 +67,11 @@ model Event {
 }
 
 enum EventType {
-  DIARY       // запись в дневнике (прошедшее)
-  PLAN        // запланированное мероприятие
-  BIRTHDAY    // день рождения
-  HOLIDAY     // праздник/отпуск
-  REMINDER    // напоминание
+  DIARY
+  PLAN
+  BIRTHDAY
+  HOLIDAY
+  REMINDER
 }
 
 enum EventStatus {
@@ -82,8 +90,6 @@ model EventLink {
   @@map("event_links")
 }
 
-// ─── Комментарии ─────────────────────────────────────────────────────────────
-
 model Comment {
   id        String   @id @default(cuid())
   text      String
@@ -95,8 +101,6 @@ model Comment {
 
   @@map("comments")
 }
-
-// ─── Голосование ─────────────────────────────────────────────────────────────
 
 model Vote {
   id        String    @id @default(cuid())
@@ -116,6 +120,16 @@ enum VoteValue {
   DOWN
 }
 
+// ─── Справочник мест расходов ────────────────────────────────────────────────
+
+model ExpensePlace {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  expenses Expense[]
+
+  @@map("expense_places")
+}
+
 // ─── Расходы ─────────────────────────────────────────────────────────────────
 
 model Expense {
@@ -126,12 +140,22 @@ model Expense {
   category    ExpenseCategory @default(OTHER)
   date        DateTime        @default(now())
   note        String?
+  beneficiary ExpenseBeneficiary @default(FAMILY)
+  beneficiaryUserId String?
+  beneficiaryUser   User?    @relation("ExpenseBeneficiary", fields: [beneficiaryUserId], references: [id])
+  placeId     String?
+  place       ExpensePlace?   @relation(fields: [placeId], references: [id])
   authorId    String
   author      User            @relation(fields: [authorId], references: [id])
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
   @@map("expenses")
+}
+
+enum ExpenseBeneficiary {
+  FAMILY
+  MEMBER
 }
 
 enum ExpenseCategory {
@@ -156,6 +180,8 @@ model Task {
   dueDate     DateTime?
   status      TaskStatus @default(PENDING)
   points      Int        @default(10)
+  authorId    String
+  author      User       @relation("TaskAuthor", fields: [authorId], references: [id])
   assigneeId  String?
   assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
   completedBy String?
@@ -173,8 +199,6 @@ enum TaskStatus {
   DONE
   OVERDUE
 }
-
-// ─── Рейтинг / бонусные очки ─────────────────────────────────────────────────
 
 model RatingPoint {
   id        String          @id @default(cuid())
@@ -196,8 +220,6 @@ enum RatingPointType {
   BONUS
   PENALTY
 }
-
-// ─── Web Push (PWA) ─────────────────────────────────────────────────────────
 
 model PushSubscription {
   id        String   @id @default(cuid())

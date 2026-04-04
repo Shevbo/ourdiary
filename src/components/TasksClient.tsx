@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Plus, X, CheckCircle2, Clock, AlertCircle, Circle } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Plus, X, CheckCircle2, Clock, AlertCircle, Circle, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -15,6 +15,9 @@ type Task = {
   status: string;
   dueDate: string | null;
   points: number;
+  authorId: string;
+  assigneeId: string | null;
+  author: User | null;
   assignee: User | null;
   completer: User | null;
   completedAt: string | null;
@@ -51,6 +54,7 @@ const STATUS_ICON_RING: Record<string, string> = {
 export default function TasksClient({
   tasks: initialTasks,
   users,
+  currentUserId,
   currentUserRole,
 }: {
   tasks: Task[];
@@ -60,12 +64,17 @@ export default function TasksClient({
 }) {
   const [tasks, setTasks] = useState(initialTasks);
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<Task | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterAssignee, setFilterAssignee] = useState("");
   const [completing, setCompleting] = useState<string | null>(null);
   const router = useRouter();
 
   const isAdmin = currentUserRole === "ADMIN" || currentUserRole === "SUPERADMIN";
+
+  useEffect(() => {
+    setTasks(initialTasks);
+  }, [initialTasks]);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -83,18 +92,59 @@ export default function TasksClient({
     return list;
   }, [tasks, filterStatus, filterAssignee]);
 
+  function canComplete(task: Task) {
+    if (task.status === "DONE") return false;
+    if (isAdmin) return true;
+    if (task.assigneeId && task.assigneeId === currentUserId) return true;
+    if (!task.assigneeId) return true;
+    return false;
+  }
+
+  function canEdit(task: Task) {
+    return task.authorId === currentUserId || isAdmin;
+  }
+
+  function openCreate() {
+    setEditing(null);
+    setTitle("");
+    setDescription("");
+    setDueDate("");
+    setPoints("10");
+    setAssigneeId("");
+    setError("");
+    setShowForm(true);
+  }
+
+  function openEdit(task: Task) {
+    setEditing(task);
+    setTitle(task.title);
+    setDescription(task.description ?? "");
+    setDueDate(task.dueDate ? task.dueDate.slice(0, 10) : "");
+    setPoints(String(task.points));
+    setAssigneeId(task.assignee?.id ?? "");
+    setError("");
+    setShowForm(true);
+  }
+
   async function handleComplete(taskId: string) {
     setCompleting(taskId);
     try {
       const res = await fetch(`/api/tasks/${taskId}/complete`, { method: "POST" });
       if (res.ok) {
+        const updated = (await res.json()) as Task;
         setTasks((prev) =>
           prev.map((t) =>
             t.id === taskId
-              ? { ...t, status: "DONE", completedAt: new Date().toISOString() }
+              ? {
+                  ...t,
+                  status: updated.status,
+                  completedAt: updated.completedAt,
+                  completer: updated.completer ?? t.completer,
+                }
               : t
           )
         );
+        router.refresh();
       }
     } finally {
       setCompleting(null);
@@ -106,25 +156,31 @@ export default function TasksClient({
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/tasks", {
-        method: "POST",
+      const payload = {
+        title,
+        description: description || undefined,
+        dueDate: dueDate || undefined,
+        points: parseInt(points, 10),
+        assigneeId: assigneeId || undefined,
+      };
+      const res = await fetch(editing ? `/api/tasks/${editing.id}` : "/api/tasks", {
+        method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          description: description || undefined,
-          dueDate: dueDate || undefined,
-          points: parseInt(points),
-          assigneeId: assigneeId || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
+      const data = await res.json();
       if (!res.ok) {
-        const d = await res.json();
-        setError(d.error ?? "Ошибка");
+        setError((data.error as string) ?? "Ошибка");
         return;
+      }
+      if (editing) {
+        setTasks((prev) => prev.map((t) => (t.id === editing.id ? { ...t, ...data } : t)));
+      } else {
+        setTasks((prev) => [data as Task, ...prev]);
       }
       router.refresh();
       setShowForm(false);
-      setTitle(""); setDescription(""); setDueDate(""); setPoints("10"); setAssigneeId("");
+      setEditing(null);
     } catch {
       setError("Ошибка соединения");
     } finally {
@@ -138,7 +194,7 @@ export default function TasksClient({
         <h1 className="text-slate-900 dark:text-white text-2xl font-bold">Задачи и обязанности</h1>
         {isAdmin && (
           <button
-            onClick={() => setShowForm(true)}
+            onClick={openCreate}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -147,7 +203,6 @@ export default function TasksClient({
         )}
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6">
         <select
           value={filterStatus}
@@ -188,15 +243,28 @@ export default function TasksClient({
                   <p className={cn("text-sm font-medium", task.status === "DONE" ? "text-slate-400 dark:text-slate-500 line-through" : "text-slate-900 dark:text-white")}>
                     {task.title}
                   </p>
-                  <span className={cn("text-xs px-2 py-0.5 rounded-full flex-shrink-0", STATUS_COLORS[task.status])}>
-                    {STATUS_LABELS[task.status]}
-                  </span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <span className={cn("text-xs px-2 py-0.5 rounded-full", STATUS_COLORS[task.status])}>
+                      {STATUS_LABELS[task.status]}
+                    </span>
+                    {canEdit(task) && (
+                      <button
+                        type="button"
+                        onClick={() => openEdit(task)}
+                        className="p-1 rounded text-slate-500 hover:text-indigo-500"
+                        title="Редактировать"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {task.description && (
                   <p className="text-slate-600 dark:text-slate-400 text-xs mt-1">{task.description}</p>
                 )}
                 <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500 dark:text-slate-500">
                   {task.assignee && <span>Исполнитель: {task.assignee.name ?? task.assignee.id}</span>}
+                  {!task.assigneeId && <span className="text-indigo-600 dark:text-indigo-400">Универсальная задача</span>}
                   {task.dueDate && (
                     <span className={cn(
                       new Date(task.dueDate) < new Date() && task.status !== "DONE" ? "text-red-400" : ""
@@ -204,12 +272,12 @@ export default function TasksClient({
                       До: {format(new Date(task.dueDate), "d MMM yyyy", { locale: ru })}
                     </span>
                   )}
-                  <span className="text-amber-700 dark:text-amber-400">+{task.points} очков</span>
+                  <span className="text-amber-700 dark:text-amber-400">+{task.points} сембонов</span>
                 </div>
               </div>
-              {task.status !== "DONE" && (
+              {task.status !== "DONE" && canComplete(task) && (
                 <button
-                  onClick={() => handleComplete(task.id)}
+                  onClick={() => void handleComplete(task.id)}
                   disabled={completing === task.id}
                   className="flex-shrink-0 flex items-center gap-1.5 text-xs min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 bg-emerald-100 dark:bg-emerald-500/20 hover:bg-emerald-200 dark:hover:bg-emerald-500/30 text-emerald-800 dark:text-emerald-400 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
                 >
@@ -222,13 +290,14 @@ export default function TasksClient({
         </div>
       )}
 
-      {/* Create task modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-              <h2 className="text-slate-900 dark:text-white font-semibold text-lg">Новая задача</h2>
-              <button type="button" onClick={() => setShowForm(false)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white min-h-11 min-w-11 flex items-center justify-center sm:min-h-0 sm:min-w-0">
+              <h2 className="text-slate-900 dark:text-white font-semibold text-lg">
+                {editing ? "Редактировать задачу" : "Новая задача"}
+              </h2>
+              <button type="button" onClick={() => { setShowForm(false); setEditing(null); }} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white min-h-11 min-w-11 flex items-center justify-center sm:min-h-0 sm:min-w-0">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -263,7 +332,7 @@ export default function TasksClient({
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Очки</label>
+                  <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Сембоны</label>
                   <input
                     type="number"
                     min="1"
@@ -280,7 +349,7 @@ export default function TasksClient({
                   onChange={(e) => setAssigneeId(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">Не назначен</option>
+                  <option value="">Не назначен (универсальная)</option>
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>{u.name ?? u.id}</option>
                   ))}
@@ -292,7 +361,7 @@ export default function TasksClient({
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
+                  onClick={() => { setShowForm(false); setEditing(null); }}
                   className="flex-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-300 font-medium rounded-lg px-4 py-2.5 transition-colors text-sm min-h-11 sm:min-h-0"
                 >
                   Отмена
@@ -302,7 +371,7 @@ export default function TasksClient({
                   disabled={loading}
                   className={cn("flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg px-4 py-2.5 transition-colors text-sm", loading && "opacity-60 cursor-not-allowed")}
                 >
-                  {loading ? "Сохранение…" : "Создать"}
+                  {loading ? "Сохранение…" : editing ? "Сохранить" : "Создать"}
                 </button>
               </div>
             </form>

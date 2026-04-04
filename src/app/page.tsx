@@ -31,5 +31,11 @@ export default async function HomePage() {
     votes: e.votes.map((v: { value: "UP" | "DOWN"; userId: string }) => ({ value: v.value, userId: v.userId })),
   }));
 
-  return <FeedClient events={serialized} currentUserId={session.user.id} />;
+  return (
+    <FeedClient
+      events={serialized}
+      currentUserId={session.user.id}
+      currentUserRole={session.user.role}
+    />
+  );
 }

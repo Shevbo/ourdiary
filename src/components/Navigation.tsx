@@ -6,7 +6,7 @@ import { signOut, useSession } from "next-auth/react";
 import {
   BookHeart,
   Calendar,
-  DollarSign,
+  Wallet,
   CheckSquare,
   Star,
   Tv,
@@ -19,9 +19,9 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/", label: "Лента", icon: BookHeart },
   { href: "/calendar", label: "Календарь", icon: Calendar },
-  { href: "/expenses", label: "Расходы", icon: DollarSign },
+  { href: "/expenses", label: "Расходы", icon: Wallet },
   { href: "/tasks", label: "Задачи", icon: CheckSquare },
-  { href: "/rating", label: "Рейтинг", icon: Star },
+  { href: "/rating", label: "Сембон", icon: Star },
   { href: "/tv", label: "TV", icon: Tv },
 ];
 
@@ -42,6 +42,18 @@ export default function Navigation() {
         </div>
 
         <div className="flex-1 py-4 px-3 space-y-1">
+          <Link
+            href="/me"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+              pathname === "/me"
+                ? "bg-indigo-600 text-white"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+            )}
+          >
+            <User className="w-4 h-4 flex-shrink-0" />
+            Кабинет
+          </Link>
           {navItems.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}

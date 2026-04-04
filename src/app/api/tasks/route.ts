@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
     include: {
       assignee: { select: { id: true, name: true, avatarUrl: true } },
       completer: { select: { id: true, name: true, avatarUrl: true } },
+      author: { select: { id: true, name: true, avatarUrl: true } },
     },
     orderBy: [{ status: "asc" }, { dueDate: "asc" }],
   });
@@ -50,9 +51,11 @@ export async function POST(req: NextRequest) {
       dueDate: dueDate ? new Date(dueDate) : undefined,
       assigneeId,
       points: points ?? 10,
+      authorId: session.user.id,
     },
     include: {
       assignee: { select: { id: true, name: true, avatarUrl: true } },
+      author: { select: { id: true, name: true, avatarUrl: true } },
     },
   });
 

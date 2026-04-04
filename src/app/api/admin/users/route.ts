@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { findUserByEmailInsensitive } from "@/lib/user-by-email";
+import { findUserByLoginNameInsensitive } from "@/lib/user-lookup";
 import bcrypt from "bcryptjs";
 
 function isAdminSession(role: string) {
@@ -42,6 +43,9 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
+  const loginName = String(body.loginName ?? "")
+    .trim()
+    .toLowerCase();
   const email = String(body.email ?? "")
     .trim()
     .toLowerCase();
@@ -49,17 +53,27 @@ export async function POST(req: NextRequest) {
   const password = String(body.password ?? "");
   const role = body.role != null ? String(body.role) : undefined;
 
-  if (!email || !password) return NextResponse.json({ error: "email и password обязательны" }, { status: 400 });
+  if (!loginName || !email || !password) {
+    return NextResponse.json({ error: "loginName, email и password обязательны" }, { status: 400 });
+  }
 
-  const existing = await findUserByEmailInsensitive(email);
-  if (existing) return NextResponse.json({ error: "Пользователь с таким email уже существует" }, { status: 409 });
+  const existingEmail = await findUserByEmailInsensitive(email);
+  if (existingEmail) return NextResponse.json({ error: "Пользователь с таким email уже существует" }, { status: 409 });
+  const existingLogin = await findUserByLoginNameInsensitive(loginName);
+  if (existingLogin) return NextResponse.json({ error: "Такое имя для входа уже занято" }, { status: 409 });
 
   const userRole = role === "ADMIN" ? "ADMIN" : "MEMBER";
 
   const passwordHash = await bcrypt.hash(password, 12);
   const user = await prisma.user.create({
-    data: { email, name: name || undefined, passwordHash, role: userRole },
-    select: { id: true, email: true, name: true, role: true },
+    data: {
+      loginName,
+      email,
+      name: name || undefined,
+      passwordHash,
+      role: userRole,
+    },
+    select: { id: true, loginName: true, email: true, name: true, role: true },
   });
 
   return NextResponse.json(user, { status: 201 });

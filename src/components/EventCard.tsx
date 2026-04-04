@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ThumbsUp, ThumbsDown, MessageCircle, ExternalLink, BookHeart, Calendar, Gift, Sun, Bell } from "lucide-react";
+import { ThumbsUp, ThumbsDown, MessageCircle, ExternalLink, BookHeart, Calendar, Gift, Sun, Bell, Pencil, Trash2 } from "lucide-react";
 import { formatDate, EVENT_TYPE_LABELS, EVENT_TYPE_COLORS, cn } from "@/lib/utils";
 
 type Vote = { value: "UP" | "DOWN"; userId: string };
@@ -14,6 +14,7 @@ export type EventCardData = {
   description: string | null;
   type: string;
   date: string | Date;
+  endDate?: string | Date | null;
   imageUrl: string | null;
   author: Author;
   links: Link[];
@@ -32,10 +33,21 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 export default function EventCard({
   event,
   currentUserId,
+  currentUserRole,
+  onEdit,
+  onDeleted,
 }: {
   event: EventCardData;
   currentUserId: string;
+  currentUserRole: string;
+  onEdit?: () => void;
+  onDeleted?: (id: string) => void;
 }) {
+  const canManage =
+    event.author.id === currentUserId ||
+    currentUserRole === "ADMIN" ||
+    currentUserRole === "SUPERADMIN";
+  const [deleting, setDeleting] = useState(false);
   const myVote = event.votes.find((v) => v.userId === currentUserId);
   const [upCount, setUpCount] = useState(event.votes.filter((v) => v.value === "UP").length);
   const [downCount, setDownCount] = useState(event.votes.filter((v) => v.value === "DOWN").length);
@@ -70,12 +82,31 @@ export default function EventCard({
     }
   }
 
+  async function handleDelete() {
+    if (!onDeleted || deleting) return;
+    if (!confirm("Удалить это событие?")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}`, { method: "DELETE" });
+      if (res.ok) onDeleted(event.id);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden hover:border-slate-300 dark:hover:border-slate-700 transition-colors shadow-sm dark:shadow-none">
+    <div
+      className={cn(
+        "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden hover:border-slate-300 dark:hover:border-slate-700 transition-colors shadow-sm dark:shadow-none",
+        onEdit && canManage && "cursor-pointer"
+      )}
+      onClick={onEdit && canManage ? onEdit : undefined}
+      role={onEdit && canManage ? "button" : undefined}
+    >
       {event.imageUrl && (
-        <div className="h-48 overflow-hidden">
+        <div className="h-48 w-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={event.imageUrl} alt={event.title} className="w-full h-full object-cover" />
+          <img src={event.imageUrl} alt={event.title} className="max-h-full max-w-full w-full h-full object-contain" />
         </div>
       )}
       <div className="p-4">
@@ -87,9 +118,34 @@ export default function EventCard({
             </span>
             <span className="text-slate-500 dark:text-slate-500 text-xs">{formatDate(event.date)}</span>
           </div>
-          <span className="text-slate-500 dark:text-slate-500 text-xs flex-shrink-0">
-            {event.author.name ?? event.author.id}
-          </span>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-slate-500 dark:text-slate-500 text-xs">
+              {event.author.name ?? event.author.id}
+            </span>
+            {canManage && onEdit && (
+              <span className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-500 hover:bg-indigo-500/10"
+                  title="Редактировать"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                {onDeleted && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete()}
+                    disabled={deleting}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10 disabled:opacity-50"
+                    title="Удалить"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </span>
+            )}
+          </div>
         </div>
 
         <h3 className="text-slate-900 dark:text-white font-semibold text-base mb-1 leading-snug">{event.title}</h3>
@@ -101,7 +157,7 @@ export default function EventCard({
         )}
 
         {event.links.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="flex flex-wrap gap-2 mb-3" onClick={(e) => e.stopPropagation()}>
             {event.links.map((link) => (
               <a
                 key={link.id}
@@ -117,7 +173,10 @@ export default function EventCard({
           </div>
         )}
 
-        <div className="flex items-center gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+        <div
+          className="flex items-center gap-3 pt-2 border-t border-slate-200 dark:border-slate-800"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
             onClick={() => handleVote("UP")}
             disabled={voting}

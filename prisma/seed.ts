@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 
 async function main() {
   const superadminEmail = "bshevelev@mail.ru";
+  const loginName = "bshevelev";
   const password = process.env.SEED_SUPERADMIN_PASSWORD ?? "changeme-dev-only";
 
   const existing = await prisma.user.findUnique({ where: { email: superadminEmail } });
@@ -23,6 +24,7 @@ async function main() {
   const passwordHash = await bcrypt.hash(password, 12);
   await prisma.user.create({
     data: {
+      loginName,
       email: superadminEmail,
       name: "Борис Шевелев",
       passwordHash,
@@ -30,7 +32,7 @@ async function main() {
     },
   });
 
-  console.log(`Создан суперадмин: ${superadminEmail}`);
+  console.log(`Создан суперадмин: ${loginName} / ${superadminEmail}`);
 }
 
 main()

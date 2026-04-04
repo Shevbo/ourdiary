@@ -12,7 +12,18 @@ export default async function AdminPage() {
   if (session.user.role !== "ADMIN" && session.user.role !== "SUPERADMIN") redirect("/");
 
   const users = await prisma.user.findMany({
-    select: { id: true, email: true, name: true, role: true, createdAt: true, avatarUrl: true },
+    select: {
+      id: true,
+      loginName: true,
+      email: true,
+      name: true,
+      role: true,
+      createdAt: true,
+      avatarUrl: true,
+      isServiceUser: true,
+      sembonManualAdjust: true,
+      monthlyBudgetByCategory: true,
+    },
     orderBy: { createdAt: "asc" },
   });
 
