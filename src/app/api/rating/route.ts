@@ -12,6 +12,7 @@ export async function GET() {
       id: true,
       name: true,
       avatarUrl: true,
+      sembonManualAdjust: true,
       ratingPoints: {
         select: { points: true, type: true, reason: true, createdAt: true },
         orderBy: { createdAt: "desc" },
@@ -26,7 +27,8 @@ export async function GET() {
       id: u.id,
       name: u.name,
       avatarUrl: u.avatarUrl,
-      totalPoints: u.ratingPoints.reduce((sum: number, p: { points: number }) => sum + p.points, 0),
+      totalPoints:
+        u.ratingPoints.reduce((sum: number, p: { points: number }) => sum + p.points, 0) + u.sembonManualAdjust,
       recentActivity: u.ratingPoints,
     }))
     .sort((a: { totalPoints: number }, b: { totalPoints: number }) => b.totalPoints - a.totalPoints);
