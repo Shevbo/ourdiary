@@ -106,9 +106,11 @@ npm start
 ## Деплой (унифицированный Shectory)
 
 ```bash
-# Из корня монолита CursorRPA на VDS:
+# Из корня монолита CursorRPA на VDS (или с любой машины с SSH `hoster` + клоном CursorRPA):
 /home/shectory/workspaces/CursorRPA/scripts/deploy-project.sh ourdiary hoster
 ```
+
+Скрипт на hoster: **`scripts/deploy.sh`** — `git pull`, `NODE_ENV=development npm ci` (нужны devDependencies для `next build` / Tailwind), `prisma migrate deploy`, `npm run build`, перезапуск **PM2** `ourdiary`.
 
 **Git (стандарт Shectory):** канонический `git_remote`, путь клона на VDS и правило SSH — в монолите `CursorRPA`: `docs/shectory-projects-registry.md` (строка **ourdiary**), подробнее — `docs/shectory-wikipedia.md` → раздел «Git remote и новый прикладной репозиторий», общее про commit/push перед деплоем — `docs/unified-deploy-ru.md`.
 
