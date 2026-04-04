@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
+/** Статика в `public/` — файл должен быть настоящим PNG (не WebP с расширением .png). */
 const DARUMA_SRC = "/images/daruma-doll.png";
 
 /** Позиции зрачков относительно квадратного кадра 360×360 (традиция: сначас красят глаз справа у зрителя). */
