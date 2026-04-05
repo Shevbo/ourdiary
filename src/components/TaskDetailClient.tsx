@@ -247,6 +247,17 @@ export default function TaskDetailClient({
         )}
 
         <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          {task.status === "POSTPONED" && (isAuthor || isAdmin) && (
+            <button
+              type="button"
+              disabled={loading !== null}
+              onClick={() => void runAction("resume")}
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              Вернуть в черновик
+            </button>
+          )}
+
           {task.status === "DRAFT" && (isAuthor || isAdmin) && (
             <>
               {!task.authorSeeksSembons && (
