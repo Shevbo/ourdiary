@@ -31,8 +31,25 @@ export async function fetchReceiptLinesProverkacheka(
     return null;
   }
 
-  const lines = extractLinesFromUnknownJson(data);
+  const payload = extractProverkachekaPayload(data);
+  if (payload === null) return null;
+
+  const lines = extractLinesFromUnknownJson(payload);
   return lines.length > 0 ? lines : null;
+}
+
+/** Ответ API: `{ code: 1, data: { json: { … позиции … } } }`; при ошибке `code !== 1`. */
+function extractProverkachekaPayload(data: unknown): unknown {
+  if (!data || typeof data !== "object") return data;
+  const o = data as Record<string, unknown>;
+  if (typeof o.code === "number" && o.code !== 1) return null;
+  const d = o.data;
+  if (d && typeof d === "object") {
+    const dr = d as Record<string, unknown>;
+    if (dr.json != null && typeof dr.json === "object") return dr.json;
+    return d;
+  }
+  return data;
 }
 
 function num(v: unknown): number | null {

@@ -722,10 +722,10 @@ export default function ExpensesClient({
                     <img src={imageUrl} alt="" className="h-14 w-14 rounded-lg object-cover border border-slate-200 dark:border-slate-600" />
                   )}
                 </div>
-                <div className="flex flex-wrap gap-3 items-center">
+                <div className="flex flex-wrap gap-2 items-center">
                   <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800">
                     <Camera className="w-4 h-4 shrink-0" />
-                    Фото чека (ч/б, до ~100 КБ)
+                    Снять чек
                     <input
                       type="file"
                       accept="image/*"
@@ -735,6 +735,18 @@ export default function ExpensesClient({
                       onChange={(e) => void uploadReceiptImage(e.target.files?.[0] ?? null)}
                     />
                   </label>
+                  <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <ImagePlus className="w-4 h-4 shrink-0" />
+                    Чек из галереи
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadBusy !== ""}
+                      onChange={(e) => void uploadReceiptImage(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <span className="w-full text-[11px] text-slate-500">Сжатие ч/б до ~100 КБ на сервере</span>
                   {receiptImageUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
