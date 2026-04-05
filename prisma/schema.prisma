@@ -182,8 +182,16 @@ model Task {
   title       String
   description String?
   dueDate     DateTime?
-  status      TaskStatus @default(PENDING)
+  status      TaskStatus @default(DRAFT)
   points      Int        @default(10)
+  /// Постановщик хочет заработать сембоны — активация только через согласование админа
+  authorSeeksSembons Boolean @default(false)
+  isRecurring Boolean @default(false)
+  recurrenceKind TaskRecurrenceKind @default(NONE)
+  /// WEEKLY: { "weekdays": number[] } (0=вс..6=сб); MONTHLY: { "dayOfMonth": number }; YEARLY: { "month": number, "day": number }
+  recurrencePayload Json?
+  /// Ближайший срок для регулярной задачи (для отображения)
+  nextDueAt   DateTime?
   authorId    String
   author      User       @relation("TaskAuthor", fields: [authorId], references: [id])
   assigneeId  String?
@@ -198,10 +206,21 @@ model Task {
 }
 
 enum TaskStatus {
-  PENDING
+  DRAFT
+  APPROVAL_PENDING
   IN_PROGRESS
+  IN_REVIEW
   DONE
-  OVERDUE
+  POSTPONED
+  CANCELLED
+}
+
+enum TaskRecurrenceKind {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
 }
 
 model RatingPoint {

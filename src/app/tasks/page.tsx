@@ -17,15 +17,16 @@ export default async function TasksPage() {
         completer: { select: { id: true, name: true, avatarUrl: true } },
         author: { select: { id: true, name: true, avatarUrl: true } },
       },
-      orderBy: [{ status: "asc" }, { dueDate: "asc" }],
+      orderBy: [{ nextDueAt: "asc" }, { dueDate: "asc" }, { createdAt: "desc" }],
     }),
     prisma.user.findMany({ select: { id: true, name: true } }),
   ]);
 
-  type TaskRow = typeof tasks[number];
+  type TaskRow = (typeof tasks)[number];
   const serialized = tasks.map((t: TaskRow) => ({
     ...t,
     dueDate: t.dueDate?.toISOString() ?? null,
+    nextDueAt: t.nextDueAt?.toISOString() ?? null,
     completedAt: t.completedAt?.toISOString() ?? null,
     createdAt: t.createdAt.toISOString(),
     updatedAt: t.updatedAt.toISOString(),
