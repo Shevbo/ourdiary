@@ -40,6 +40,9 @@ model User {
   dreamsAuthored Dream[]       @relation("DreamAuthor")
   dreamSupports  DreamSupport[] @relation("DreamSupporter")
   notifications  Notification[]
+  appNewsComments AppNewsComment[]
+  appNewsReactions AppNewsReaction[]
+  appNewsVotes    AppNewsVote[]
 
   @@map("users")
 }
@@ -52,8 +55,52 @@ model AppNews {
   createdAt DateTime @default(now())
   published Boolean  @default(true)
 
+  comments  AppNewsComment[]
+  reactions AppNewsReaction[]
+  votes     AppNewsVote[]
+
   @@index([createdAt(sort: Desc)])
   @@map("app_news")
+}
+
+model AppNewsComment {
+  id        String   @id @default(cuid())
+  text      String
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  appNewsId String
+  appNews   AppNews  @relation(fields: [appNewsId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([appNewsId])
+  @@map("app_news_comments")
+}
+
+model AppNewsReaction {
+  id        String   @id @default(cuid())
+  appNewsId String
+  appNews   AppNews  @relation(fields: [appNewsId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([appNewsId, userId, emoji])
+  @@index([appNewsId])
+  @@map("app_news_reactions")
+}
+
+model AppNewsVote {
+  id        String    @id @default(cuid())
+  value     VoteValue
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appNewsId String
+  appNews   AppNews   @relation(fields: [appNewsId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@unique([userId, appNewsId])
+  @@map("app_news_votes")
 }
 
 // ─── Справочник категорий расходов (редактирует админ) ───────────────────────

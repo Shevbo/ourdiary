@@ -5,6 +5,7 @@ import { Plus, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import EventCard, { type EventCardData } from "./EventCard";
+import AppNewsCard, { type AppNewsCardData } from "./AppNewsCard";
 import AddEventModal from "./AddEventModal";
 import EventDetailModal from "./EventDetailModal";
 import { useRouter } from "next/navigation";
@@ -15,7 +16,7 @@ export default function FeedClient({
   currentUserId,
   currentUserRole,
 }: {
-  appNews: { id: string; body: string; createdAt: string }[];
+  appNews: AppNewsCardData[];
   events: EventCardData[];
   currentUserId: string;
   currentUserRole: string;
@@ -24,7 +25,9 @@ export default function FeedClient({
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<EventCardData | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [commentEventId, setCommentEventId] = useState<string | null>(null);
+  const [commentTarget, setCommentTarget] = useState<
+    { kind: "event"; id: string } | { kind: "news"; id: string } | null
+  >(null);
   const [commentText, setCommentText] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
   const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -35,10 +38,10 @@ export default function FeedClient({
   }, [initialEvents]);
 
   useEffect(() => {
-    if (commentEventId && commentInputRef.current) {
+    if (commentTarget && commentInputRef.current) {
       commentInputRef.current.focus();
     }
-  }, [commentEventId]);
+  }, [commentTarget]);
 
   function mergeSavedEvent(saved: EventCardData) {
     setEvents((prev) => {
@@ -58,17 +61,21 @@ export default function FeedClient({
 
   async function submitComment() {
     const t = commentText.trim();
-    if (!t || !commentEventId || sendingComment) return;
+    if (!t || !commentTarget || sendingComment) return;
     setSendingComment(true);
     try {
-      const res = await fetch(`/api/events/${commentEventId}/comments`, {
+      const url =
+        commentTarget.kind === "event"
+          ? `/api/events/${commentTarget.id}/comments`
+          : `/api/app-news/${commentTarget.id}/comments`;
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: t }),
       });
       if (res.ok) {
         setCommentText("");
-        setCommentEventId(null);
+        setCommentTarget(null);
         router.refresh();
       }
     } finally {
@@ -89,15 +96,20 @@ export default function FeedClient({
           </div>
           <div className="space-y-4">
             {appNews.map((n) => (
-              <article
+              <AppNewsCard
                 key={n.id}
-                className="rounded-xl bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-700 px-4 py-3 text-slate-800 dark:text-slate-200 text-sm leading-relaxed"
-              >
-                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">
-                  {format(new Date(n.createdAt), "d MMMM yyyy", { locale: ru })}
-                </p>
-                <p className="whitespace-pre-wrap">{n.body}</p>
-              </article>
+                item={n}
+                currentUserId={currentUserId}
+                dateLabel={format(new Date(n.createdAt), "d MMMM yyyy", { locale: ru })}
+                onFocusComment={() => {
+                  setCommentTarget({ kind: "news", id: n.id });
+                  setCommentText("");
+                }}
+                onNewComment={() => {
+                  setCommentTarget({ kind: "news", id: n.id });
+                  setCommentText("");
+                }}
+              />
             ))}
           </div>
         </section>
@@ -144,11 +156,11 @@ export default function FeedClient({
               onDeleted={handleDelete}
               onOpen={() => setDetailId(event.id)}
               onFocusComment={() => {
-                setCommentEventId(event.id);
+                setCommentTarget({ kind: "event", id: event.id });
                 setCommentText("");
               }}
               onNewComment={() => {
-                setCommentEventId(event.id);
+                setCommentTarget({ kind: "event", id: event.id });
                 setCommentText("");
               }}
             />
@@ -171,14 +183,18 @@ export default function FeedClient({
         <EventDetailModal eventId={detailId} currentUserId={currentUserId} onClose={() => setDetailId(null)} />
       )}
 
-      {commentEventId && (
+      {commentTarget && (
         <div className="fixed bottom-0 left-0 right-0 z-[65] border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg">
           <div className="max-w-2xl mx-auto flex gap-2">
             <textarea
               ref={commentInputRef}
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
-              placeholder="Комментарий к событию…"
+              placeholder={
+                commentTarget.kind === "news"
+                  ? "Комментарий к новости…"
+                  : "Комментарий к событию…"
+              }
               rows={2}
               className="flex-1 min-w-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white resize-none"
             />
@@ -194,7 +210,7 @@ export default function FeedClient({
               <button
                 type="button"
                 onClick={() => {
-                  setCommentEventId(null);
+                  setCommentTarget(null);
                   setCommentText("");
                 }}
                 className="text-xs text-slate-500"

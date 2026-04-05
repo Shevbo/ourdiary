@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import SembonIcon from "@/components/SembonIcon";
 
 type UserOpt = { id: string; name: string | null };
 
@@ -103,7 +104,10 @@ export default function DreamNewForm() {
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Поддержка (сембоны)</span>
+            <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+              <SembonIcon className="h-5 w-5" title="Сембоны" />
+              Поддержка (сембоны)
+            </span>
             <button type="button" onClick={addRow} className="text-xs text-indigo-600 flex items-center gap-1">
               <Plus className="w-3 h-3" /> Добавить
             </button>

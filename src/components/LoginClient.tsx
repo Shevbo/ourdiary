@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BookHeart, Calendar, DollarSign, Star, CheckSquare, Tv } from "lucide-react";
+import { BookHeart, Calendar, DollarSign, CheckSquare, Tv } from "lucide-react";
+import SembonIcon from "@/components/SembonIcon";
 
 export default function LoginClient({ appVersion }: { appVersion: string }) {
   const router = useRouter();
@@ -116,7 +117,7 @@ export default function LoginClient({ appVersion }: { appVersion: string }) {
                 color="amber"
               />
               <FeatureCard
-                icon={<Star className="w-5 h-5 text-purple-500 dark:text-purple-400" />}
+                icon={<SembonIcon className="h-5 w-5" title="Сембон" />}
                 title="Сембон"
                 desc="Семейный бонус за активность и участие"
                 color="purple"
@@ -136,8 +137,7 @@ export default function LoginClient({ appVersion }: { appVersion: string }) {
             <div className="bg-white/90 dark:bg-white/5 backdrop-blur-sm border border-slate-200 dark:border-white/10 rounded-2xl p-8 shadow-xl dark:shadow-2xl">
               <h2 className="text-slate-900 dark:text-white text-xl font-semibold mb-2">Вход в систему</h2>
               <p className="text-slate-600 dark:text-slate-400 text-sm mb-6">
-                Вход по <strong>имени для входа</strong> (как в профиле) и паролю. С мостом портала Shectory — тот же
-                пароль, что на{" "}
+                Вход по <strong>e-mail и паролю</strong> из единого каталога Shectory (как в{" "}
                 <a
                   href="https://shectory.ru/login"
                   className="text-indigo-600 dark:text-indigo-400 underline hover:no-underline"
@@ -145,21 +145,24 @@ export default function LoginClient({ appVersion }: { appVersion: string }) {
                   rel="noreferrer"
                 >
                   shectory.ru
-                </a>{" "}
-                (на сервере должен быть задан <code className="text-xs">SHECTORY_AUTH_BRIDGE_SECRET</code>, см. RUNBOOK).
+                </a>
+                ). После первого входа можно использовать <strong>имя для входа</strong> из профиля. На сервере —
+                одинаковый <code className="text-xs">SHECTORY_AUTH_BRIDGE_SECRET</code> в дневнике и на портале; при
+                входе только логином без «@» задайте <code className="text-xs">SHECTORY_LOGIN_EMAIL_DOMAIN</code> (см.
+                RUNBOOK).
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">
-                    Имя для входа
+                    E-mail или имя для входа
                   </label>
                   <input
                     type="text"
                     value={loginName}
                     onChange={(e) => setLoginName(e.target.value)}
                     required
-                    placeholder="например, bshevelev"
+                    placeholder="email@mail.ru или bshevelev"
                     autoComplete="username"
                     className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-2.5 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                   />

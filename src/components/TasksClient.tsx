@@ -15,8 +15,8 @@ import {
   Send,
   Hourglass,
   Gavel,
-  Coins,
 } from "lucide-react";
+import SembonIcon from "@/components/SembonIcon";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -427,7 +427,10 @@ export default function TasksClient({
                         {format(new Date(displayDue), "d MMM yyyy HH:mm", { locale: ru })}
                       </span>
                     )}
-                    <span className="text-amber-700 dark:text-amber-400">+{task.points} семб.</span>
+                    <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                      <SembonIcon className="h-3.5 w-3.5" />
+                      +{task.points} семб.
+                    </span>
                   </div>
                 </div>
                 {canComplete(task) && (
@@ -506,7 +509,7 @@ export default function TasksClient({
                   }}
                   className="inline-flex items-center gap-2 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 px-4 py-2.5 text-sm font-medium text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors"
                 >
-                  <Coins className="w-4 h-4" />
+                  <SembonIcon className="h-4 w-4" title="Сембоны" />
                   Сембоны
                 </button>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -685,7 +688,11 @@ export default function TasksClient({
               aria-labelledby="sembons-dialog-title"
               className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4"
             >
-              <h3 id="sembons-dialog-title" className="text-slate-900 dark:text-white font-semibold text-base">
+              <h3
+                id="sembons-dialog-title"
+                className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white"
+              >
+                <SembonIcon className="h-6 w-6" title="Сембоны" />
                 Задача за сембоны
               </h3>
               <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">

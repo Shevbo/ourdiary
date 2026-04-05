@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
@@ -46,6 +46,11 @@ const TYPE_DOTS: Record<string, string> = {
 };
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
+function toDatetimeLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 function EventThumb({ url }: { url: string | null }) {
   if (!url) {
@@ -156,8 +161,39 @@ export default function CalendarClient({
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [presetDateForNew, setPresetDateForNew] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const anchor = parseISO(anchorDateISO);
+
+  const lastTouchRef = useRef<{ key: string; t: number } | null>(null);
+  const dblTapBlockClickRef = useRef(false);
+
+  function openAddForDate(d: Date) {
+    setPresetDateForNew(toDatetimeLocal(d));
+    setShowAddModal(true);
+  }
+
+  function openAddFromToolbar() {
+    const d = new Date(anchor);
+    d.setHours(12, 0, 0, 0);
+    openAddForDate(d);
+  }
+
+  function touchDoubleTap(key: string, onDouble: () => void, e: React.TouchEvent) {
+    const now = Date.now();
+    const prev = lastTouchRef.current;
+    if (prev && prev.key === key && now - prev.t < 400) {
+      e.preventDefault();
+      lastTouchRef.current = null;
+      dblTapBlockClickRef.current = true;
+      setTimeout(() => {
+        dblTapBlockClickRef.current = false;
+      }, 500);
+      onDouble();
+      return;
+    }
+    lastTouchRef.current = { key, t: now };
+  }
 
   const eventsByDayOfMonth = useMemo(() => {
     const map: Record<number, CalEvent[]> = {};
@@ -214,7 +250,7 @@ export default function CalendarClient({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setShowAddModal(true)}
+            onClick={() => openAddFromToolbar()}
             className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 min-h-11 sm:min-h-0"
           >
             <Plus className="h-4 w-4" />
@@ -292,11 +328,22 @@ export default function CalendarClient({
                   today.getDate() === day;
                 const isSelected = selectedDay === day;
 
+                const tapKey = `m-${year}-${month}-${day}`;
                 return (
                   <button
                     key={day}
                     type="button"
-                    onClick={() => setSelectedDay(isSelected ? null : day)}
+                    onClick={() => {
+                      if (dblTapBlockClickRef.current) return;
+                      setSelectedDay(isSelected ? null : day);
+                    }}
+                    onDoubleClick={(e) => {
+                      e.preventDefault();
+                      openAddForDate(new Date(year, month - 1, day, 12, 0, 0, 0));
+                    }}
+                    onTouchEnd={(e) =>
+                      touchDoubleTap(tapKey, () => openAddForDate(new Date(year, month - 1, day, 12, 0, 0, 0)), e)
+                    }
                     className={cn(
                       "relative flex min-h-[44px] flex-col items-center justify-start rounded-lg pt-1.5 text-sm transition-colors sm:aspect-square sm:min-h-0",
                       isSelected
@@ -367,12 +414,20 @@ export default function CalendarClient({
           </p>
           {weekDays.map((day) => {
             const dayEvents = events.filter((ev) => isSameDay(parseISO(ev.date), day));
+            const weekTapKey = `w-${day.toISOString()}`;
+            const dayNoon = new Date(day);
+            dayNoon.setHours(12, 0, 0, 0);
             return (
               <div
                 key={day.toISOString()}
                 className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:flex-row sm:items-start dark:border-slate-800 dark:bg-slate-900/40"
               >
-                <div className="w-full shrink-0 border-b border-slate-200 pb-2 sm:w-28 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-3 dark:border-slate-700">
+                <div
+                  className="w-full shrink-0 border-b border-slate-200 pb-2 sm:w-28 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-3 dark:border-slate-700 cursor-default select-none"
+                  onDoubleClick={() => openAddForDate(dayNoon)}
+                  onTouchEnd={(e) => touchDoubleTap(weekTapKey, () => openAddForDate(dayNoon), e)}
+                  title="Двойной тап — новое событие в этот день"
+                >
                   <div className="text-[11px] font-medium uppercase text-slate-500">{format(day, "EEEE", { locale: ru })}</div>
                   <div className="text-xl font-bold text-slate-900 dark:text-white">{format(day, "d.MM")}</div>
                 </div>
@@ -390,20 +445,50 @@ export default function CalendarClient({
       )}
 
       {view === "day" && (
-        <div className="space-y-4">
-          {events.length === 0 ? (
-            <p className="text-center text-slate-500">Нет событий в этот день</p>
-          ) : (
-            events.map((ev) => <EventDayCard key={ev.id} ev={ev} onOpen={() => setDetailId(ev.id)} />)
-          )}
+        <div className="flex min-h-[50vh] flex-col space-y-4">
+          {(() => {
+            const dayNoon = new Date(anchor);
+            dayNoon.setHours(12, 0, 0, 0);
+            const dayTapKey = `d-${format(anchor, "yyyy-MM-dd")}`;
+            return (
+              <>
+                {events.length === 0 ? (
+                  <p
+                    className="flex min-h-[120px] items-center justify-center text-center text-slate-500"
+                    onDoubleClick={() => openAddForDate(dayNoon)}
+                    onTouchEnd={(e) => touchDoubleTap(dayTapKey, () => openAddForDate(dayNoon), e)}
+                  >
+                    Нет событий в этот день. Двойной тап здесь — добавить событие.
+                  </p>
+                ) : (
+                  <>
+                    {events.map((ev) => (
+                      <EventDayCard key={ev.id} ev={ev} onOpen={() => setDetailId(ev.id)} />
+                    ))}
+                    <div
+                      className="min-h-[100px] flex-1 rounded-xl"
+                      onDoubleClick={() => openAddForDate(dayNoon)}
+                      onTouchEnd={(e) => touchDoubleTap(`${dayTapKey}-pad`, () => openAddForDate(dayNoon), e)}
+                      aria-hidden
+                    />
+                  </>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
 
       {showAddModal && (
         <AddEventModal
-          onClose={() => setShowAddModal(false)}
+          initialDateForNew={presetDateForNew}
+          onClose={() => {
+            setShowAddModal(false);
+            setPresetDateForNew(null);
+          }}
           onSaved={() => {
             setShowAddModal(false);
+            setPresetDateForNew(null);
             router.refresh();
           }}
         />

@@ -25,10 +25,13 @@ export default function AddEventModal({
   onClose,
   onSaved,
   initialEvent,
+  initialDateForNew,
 }: {
   onClose: () => void;
   onSaved: (event: EventCardData) => void;
   initialEvent?: EventCardData | null;
+  /** `datetime-local` string (локальное время) для нового события с календаря */
+  initialDateForNew?: string | null;
 }) {
   const editId = initialEvent?.id;
   const [title, setTitle] = useState("");
@@ -44,16 +47,21 @@ export default function AddEventModal({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!initialEvent) return;
-    setTitle(initialEvent.title);
-    setDescription(initialEvent.description ?? "");
-    setType(initialEvent.type);
-    setDate(toDatetimeLocal(initialEvent.date));
-    setEndDate(initialEvent.endDate ? toDatetimeLocal(initialEvent.endDate) : "");
-    setImageUrl(initialEvent.imageUrl ?? "");
-    setImagePreview(initialEvent.imageUrl ?? null);
-    setLinks(initialEvent.links.map((l) => ({ label: l.label, url: l.url })));
-  }, [initialEvent]);
+    if (initialEvent) {
+      setTitle(initialEvent.title);
+      setDescription(initialEvent.description ?? "");
+      setType(initialEvent.type);
+      setDate(toDatetimeLocal(initialEvent.date));
+      setEndDate(initialEvent.endDate ? toDatetimeLocal(initialEvent.endDate) : "");
+      setImageUrl(initialEvent.imageUrl ?? "");
+      setImagePreview(initialEvent.imageUrl ?? null);
+      setLinks(initialEvent.links.map((l) => ({ label: l.label, url: l.url })));
+      return;
+    }
+    if (initialDateForNew) {
+      setDate(initialDateForNew);
+    }
+  }, [initialEvent, initialDateForNew]);
 
   function addLink() {
     setLinks((l) => [...l, { label: "", url: "" }]);

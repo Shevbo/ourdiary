@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { DarumaIcon, DREAM_STATUS_LABEL } from "./DarumaStatus";
 import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import SembonIcon from "@/components/SembonIcon";
 
 type Support = {
   id: string;
@@ -245,7 +246,8 @@ export default function DreamDetailClient({ dreamId }: { dreamId: string }) {
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-medium text-slate-900 dark:text-white">{s.supporter.name ?? s.supporter.id}</span>
-                <span className="text-xs text-slate-500">
+                <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                  <SembonIcon className="h-3.5 w-3.5" />
                   просят {s.requestedSembons} семб.
                   {s.responseStatus === "AGREED" && s.agreedSembons != null && (
                     <> → согласовано {s.agreedSembons}</>

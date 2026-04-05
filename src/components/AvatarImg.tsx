@@ -69,7 +69,7 @@ export default function AvatarImg({
             loading="lazy"
             decoding="async"
             className="h-full w-full object-cover"
-            referrerPolicy="no-referrer"
+            referrerPolicy={src!.startsWith("/") ? undefined : "no-referrer"}
             onError={() => setBroken(true)}
           />
         ) : (

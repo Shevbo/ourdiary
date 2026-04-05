@@ -14,7 +14,14 @@ export default async function HomePage() {
     where: { published: true },
     orderBy: { createdAt: "desc" },
     take: 20,
-    select: { id: true, body: true, createdAt: true },
+    select: {
+      id: true,
+      body: true,
+      createdAt: true,
+      reactions: { select: { emoji: true, userId: true } },
+      votes: true,
+      _count: { select: { comments: true } },
+    },
   });
 
   const events = await prisma.event.findMany({
@@ -52,8 +59,15 @@ export default async function HomePage() {
   }));
 
   const newsSerialized = appNews.map((n) => ({
-    ...n,
+    id: n.id,
+    body: n.body,
     createdAt: n.createdAt.toISOString(),
+    votes: n.votes.map((v: { value: "UP" | "DOWN"; userId: string }) => ({
+      value: v.value,
+      userId: v.userId,
+    })),
+    reactions: packReactions(n.reactions, session.user.id),
+    _count: { comments: n._count.comments },
   }));
 
   return (

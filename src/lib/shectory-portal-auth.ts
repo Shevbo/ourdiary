@@ -16,6 +16,8 @@ export async function verifyShectoryPortalCredentials(
   const base = (process.env.SHECTORY_PORTAL_URL ?? "https://shectory.ru").replace(/\/$/, "");
   if (!secret) return null;
 
+  const emailNorm = email.trim().toLowerCase();
+
   try {
     const r = await fetch(`${base}/api/internal/verify-portal-credentials`, {
       method: "POST",
@@ -23,7 +25,7 @@ export async function verifyShectoryPortalCredentials(
         "Content-Type": "application/json",
         Authorization: `Bearer ${secret}`,
       },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email: emailNorm, password }),
       signal: AbortSignal.timeout(15_000),
     });
     if (!r.ok) return null;

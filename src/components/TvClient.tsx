@@ -5,7 +5,8 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { BookHeart, Calendar, Trophy, Wallet, Medal, Award, DoorOpen } from "lucide-react";
+import { BookHeart, Calendar, Wallet, Medal, Award, DoorOpen } from "lucide-react";
+import SembonIcon from "@/components/SembonIcon";
 import { cn, EVENT_TYPE_LABELS, formatMoney } from "@/lib/utils";
 import AvatarImg from "./AvatarImg";
 
@@ -25,7 +26,7 @@ const EVENT_TYPE_BADGE: Record<string, string> = {
 };
 
 const medals = [
-  <Trophy key="1" className="w-6 h-6 text-yellow-400" />,
+  <SembonIcon key="1" className="h-6 w-6" title="1 место" />,
   <Medal key="2" className="w-6 h-6 text-slate-300" />,
   <Award key="3" className="w-6 h-6 text-amber-600" />,
 ];
@@ -199,7 +200,7 @@ export default function TvClient({ data }: { data: TvData }) {
         <div className="col-span-1 flex flex-col gap-4 sm:gap-6">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 flex-1 min-h-0">
             <div className="flex items-center gap-2 mb-4">
-              <Trophy className="w-5 h-5 text-yellow-400" />
+              <SembonIcon className="h-6 w-6" title="Сембон" />
               <h2 className="text-slate-200 font-semibold text-lg">Рейтинг</h2>
             </div>
             <div className="space-y-3">
@@ -211,8 +212,11 @@ export default function TvClient({ data }: { data: TvData }) {
                     <p className="text-white font-medium text-base">{u.name ?? "—"}</p>
                   </div>
                   <div className="text-right">
-                    <span className="text-yellow-400 font-bold text-xl">{u.points}</span>
-                    <span className="text-slate-500 text-xs ml-1">семб.</span>
+                    <span className="inline-flex items-center justify-end gap-1">
+                      <SembonIcon className="h-5 w-5" />
+                      <span className="text-yellow-400 font-bold text-xl">{u.points}</span>
+                    </span>
+                    <span className="text-slate-500 text-xs">семб.</span>
                   </div>
                 </div>
               ))}

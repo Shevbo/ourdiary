@@ -9,7 +9,6 @@ import {
   Calendar,
   Wallet,
   CheckSquare,
-  Star,
   Tv,
   LogOut,
   Shield,
@@ -21,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AvatarImg from "./AvatarImg";
+import SembonIcon from "./SembonIcon";
 
 const NAV_ORDER_KEY = "ourdiary-nav-order";
 
@@ -30,7 +30,7 @@ const navItems = [
   { href: "/expenses", label: "Расходы", icon: Wallet },
   { href: "/tasks", label: "Задачи", icon: CheckSquare },
   { href: "/dreams", label: "Мечты", icon: Sparkles },
-  { href: "/rating", label: "Сембон", icon: Star },
+  { href: "/rating", label: "Сембон", icon: SembonIcon },
   { href: "/tv", label: "TV", icon: Tv },
 ];
 

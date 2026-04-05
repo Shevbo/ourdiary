@@ -6,6 +6,7 @@ import { Shield, Plus, X, Trash2, Pencil, Database } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import AvatarImg from "./AvatarImg";
+import SembonIcon from "./SembonIcon";
 import AdminAppNewsSection from "./AdminAppNewsSection";
 import AdminExpenseCategoriesSection from "./AdminExpenseCategoriesSection";
 
@@ -216,7 +217,12 @@ export default function AdminClient({
               <th className="text-left text-slate-600 dark:text-slate-400 text-xs font-medium px-4 py-3">Имя входа</th>
               <th className="text-left text-slate-600 dark:text-slate-400 text-xs font-medium px-4 py-3">Email</th>
               <th className="text-left text-slate-600 dark:text-slate-400 text-xs font-medium px-4 py-3">Роль</th>
-              <th className="text-left text-slate-600 dark:text-slate-400 text-xs font-medium px-4 py-3">Сембоны ±</th>
+              <th className="text-left text-slate-600 dark:text-slate-400 text-xs font-medium px-4 py-3">
+                <span className="inline-flex items-center gap-1.5">
+                  <SembonIcon className="h-4 w-4" title="Сембоны" />
+                  Сембоны ±
+                </span>
+              </th>
               <th className="text-left text-slate-600 dark:text-slate-400 text-xs font-medium px-4 py-3">Служебн.</th>
               <th className="text-left text-slate-600 dark:text-slate-400 text-xs font-medium px-4 py-3">Действия</th>
             </tr>
@@ -429,7 +435,10 @@ export default function AdminClient({
                 Служебный пользователь (TV и т.п.)
               </label>
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Корректировка сембонов</label>
+                <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                  <SembonIcon className="h-4 w-4" title="Сембоны" />
+                  Корректировка сембонов
+                </label>
                 <input
                   type="number"
                   value={sembonManualAdjust}

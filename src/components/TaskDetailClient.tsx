@@ -17,6 +17,7 @@ import {
   ThumbsUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import SembonIcon from "@/components/SembonIcon";
 
 type User = { id: string; name: string | null };
 type TaskDetail = {
@@ -219,7 +220,10 @@ export default function TaskDetailClient({
           </div>
           <div>
             <dt className="text-slate-500 text-xs">Сембоны (награда за выполнение)</dt>
-            <dd className="text-amber-700 dark:text-amber-400">+{task.points}</dd>
+            <dd className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+              <SembonIcon className="h-4 w-4" />
+              +{task.points}
+            </dd>
           </div>
           {task.isRecurring && task.recurrenceKind !== "NONE" && (
             <div className="sm:col-span-2">

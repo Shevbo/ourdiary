@@ -2,7 +2,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { Star, Trophy, Medal, Award } from "lucide-react";
+import { Trophy, Medal, Award } from "lucide-react";
+import SembonIcon from "@/components/SembonIcon";
 import { cn } from "@/lib/utils";
 import AvatarImg from "@/components/AvatarImg";
 import { format } from "date-fns";
@@ -71,7 +72,7 @@ export default async function RatingPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-6">
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        <Star className="w-6 h-6 text-amber-500 dark:text-yellow-400" />
+        <SembonIcon className="h-8 w-8" title="Сембон" />
         <div>
           <h1 className="text-slate-900 dark:text-white text-2xl font-bold">Сембон</h1>
           <p className="text-slate-500 dark:text-slate-500 text-sm">
@@ -101,7 +102,10 @@ export default async function RatingPage() {
                 <p className="text-slate-500 dark:text-slate-500 text-xs">{user.history.length} последних действий</p>
               </div>
               <div className="text-right flex-shrink-0">
-                <p className="text-amber-600 dark:text-yellow-400 font-bold text-xl">{user.totalPoints}</p>
+                <div className="flex items-center justify-end gap-1.5">
+                  <SembonIcon className="h-5 w-5" />
+                  <p className="text-amber-600 dark:text-yellow-400 font-bold text-xl">{user.totalPoints}</p>
+                </div>
                 <p className="text-slate-500 text-xs">сембонов</p>
               </div>
             </div>
@@ -116,8 +120,15 @@ export default async function RatingPage() {
                         {RATING_TYPE_LABELS[h.type] ?? h.type}: {h.reason}
                       </span>
                       <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                        <span className={cn(h.points >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
-                          {h.points >= 0 ? "+" : ""}{h.points}
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-0.5",
+                            h.points >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                          )}
+                        >
+                          <SembonIcon className="h-3 w-3" />
+                          {h.points >= 0 ? "+" : ""}
+                          {h.points}
                         </span>
                         <span className="text-slate-500 dark:text-slate-600">
                           {format(new Date(h.createdAt), "d MMM", { locale: ru })}
@@ -133,7 +144,7 @@ export default async function RatingPage() {
 
         {leaderboard.length === 0 && (
           <div className="text-center py-16 text-slate-500 dark:text-slate-500">
-            <Star className="w-12 h-12 mx-auto mb-3 opacity-30" />
+            <SembonIcon className="mx-auto mb-3 h-12 w-12 opacity-40" title="Сембон" />
             <p>Пока нет участников с сембонами</p>
           </div>
         )}

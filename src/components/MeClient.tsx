@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { DarumaIcon, DREAM_STATUS_LABEL } from "./DarumaStatus";
 import AvatarImg from "./AvatarImg";
-import { LogOut, User, Bell, Sparkles, Star, Wallet, Info } from "lucide-react";
+import { LogOut, User, Bell, Sparkles, Wallet, Info } from "lucide-react";
+import SembonIcon from "@/components/SembonIcon";
 import { cn } from "@/lib/utils";
 import { APP_VERSION_DISPLAY } from "@/lib/app-version";
+import { AVATAR_TARGET_MAX_BYTES, compressImageToJpegFile } from "@/lib/avatar-compress";
 
 type Profile = {
   id: string;
@@ -38,6 +40,7 @@ type DreamShelf = {
 };
 
 export default function MeClient() {
+  const { update: updateSession } = useSession();
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [name, setName] = useState("");
@@ -48,9 +51,16 @@ export default function MeClient() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [avatarError, setAvatarError] = useState("");
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [myDreams, setMyDreams] = useState<DreamShelf[]>([]);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    };
+  }, [avatarPreview]);
 
   useEffect(() => {
     void (async () => {
@@ -104,26 +114,55 @@ export default function MeClient() {
     }
   }
 
-  async function onAvatar(f: File | null) {
-    if (!f) return;
-    setUploading(true);
+  async function handleAvatarFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target;
+    const file = input.files?.[0] ?? null;
+    if (!file || file.size === 0) return;
+
     setAvatarError("");
+    if (avatarPreview) {
+      URL.revokeObjectURL(avatarPreview);
+    }
+    const localUrl = URL.createObjectURL(file);
+    setAvatarPreview(localUrl);
+
+    setUploading(true);
     try {
+      const compressed = await compressImageToJpegFile(file, AVATAR_TARGET_MAX_BYTES);
       const fd = new FormData();
-      fd.append("file", f);
+      fd.append("file", compressed);
       const res = await fetch("/api/upload/avatar", { method: "POST", body: fd });
       const data = (await res.json()) as { url?: string; error?: string };
       if (!res.ok) {
         setAvatarError(data.error ?? "Не удалось загрузить фото");
+        URL.revokeObjectURL(localUrl);
+        setAvatarPreview(null);
         return;
       }
+      if (data.url) {
+        try {
+          await updateSession({ image: data.url });
+        } catch {
+          /* сессия NextAuth могла не обновиться */
+        }
+      }
+      URL.revokeObjectURL(localUrl);
+      setAvatarPreview(null);
       const me2 = await fetch("/api/me");
       if (me2.ok) setProfile(await me2.json());
       router.refresh();
       window.dispatchEvent(new CustomEvent("ourdiary-profile-updated"));
+    } catch (err) {
+      setAvatarError(
+        err instanceof Error && err.message.includes("прочитать")
+          ? "Формат не поддерживается. Выберите JPG, PNG или WebP."
+          : "Не удалось обработать фото. Попробуйте другой файл."
+      );
+      URL.revokeObjectURL(localUrl);
+      setAvatarPreview(null);
     } finally {
       setUploading(false);
-      if (avatarInputRef.current) avatarInputRef.current.value = "";
+      input.value = "";
     }
   }
 
@@ -206,7 +245,7 @@ export default function MeClient() {
             href="/rating"
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:border-indigo-300 hover:bg-indigo-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
           >
-            <Star className="h-4 w-4 text-amber-500" />
+            <SembonIcon className="h-5 w-5" title="Сембоны" />
             Сембоны
           </Link>
           <Link
@@ -222,18 +261,33 @@ export default function MeClient() {
       <section>
         <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Профиль</h2>
         <div className="flex gap-4 mb-4">
-          <AvatarImg src={profile.avatarUrl} alt="" name={profile.name ?? profile.loginName} size="xl" />
-          <div>
-            <label className="text-xs text-slate-500 block mb-1">Фото</label>
-            <input
-              ref={avatarInputRef}
-              type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
-              disabled={uploading}
-              onChange={(e) => void onAvatar(e.target.files?.[0] ?? null)}
-              className="text-sm"
+          <div className="shrink-0">
+            <AvatarImg
+              src={avatarPreview ?? profile.avatarUrl}
+              alt=""
+              name={profile.name ?? profile.loginName}
+              size="xl"
             />
-            {uploading && <p className="text-xs text-slate-500 mt-1">Загрузка…</p>}
+            {uploading && (
+              <p className="mt-1 text-center text-[11px] text-slate-500">Отправка…</p>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <span className="text-xs text-slate-500 block mb-1">Фото</span>
+            <label className="relative inline-flex min-h-[44px] min-w-[160px] cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                disabled={uploading}
+                className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                onChange={(e) => void handleAvatarFileChange(e)}
+              />
+              {uploading ? "Загрузка…" : "Выбрать файл"}
+            </label>
+            <p className="text-xs text-slate-500 mt-2">
+              Сразу показывается превью; перед отправкой сжимаем до ~330 КБ (JPEG). Исходник до 5 МБ.
+            </p>
             {avatarError && <p className="text-xs text-red-600 mt-1">{avatarError}</p>}
           </div>
         </div>

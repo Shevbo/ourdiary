@@ -19,5 +19,7 @@ declare module "next-auth/jwt" {
     id: string;
     role: string;
     isServiceUser?: boolean;
+    picture?: string | null;
+    name?: string | null;
   }
 }
