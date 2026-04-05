@@ -20,20 +20,52 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const body = await req.json();
-  const { title, amount, category, date, note, currency, beneficiary, beneficiaryUserId, placeId } = body;
+  const {
+    title,
+    amount,
+    category,
+    date,
+    note,
+    currency,
+    beneficiary,
+    beneficiaryUserId,
+    placeId,
+    imageUrl,
+    receiptImageUrl,
+  } = body;
+
+  if (category !== undefined) {
+    const cat = String(category).trim().toUpperCase();
+    const row = await prisma.expenseCategoryDefinition.findUnique({ where: { code: cat } });
+    if (!row) {
+      return NextResponse.json({ error: "Неизвестная категория" }, { status: 400 });
+    }
+    if (!row.isActive) {
+      return NextResponse.json({ error: "Категория отключена" }, { status: 400 });
+    }
+  }
+
+  const patchImage = (v: unknown) => {
+    if (v === undefined) return undefined;
+    if (v === null) return null;
+    if (typeof v === "string" && v.startsWith("/uploads/")) return v;
+    return undefined;
+  };
 
   const updated = await prisma.expense.update({
     where: { id },
     data: {
       ...(title !== undefined ? { title } : {}),
       ...(amount !== undefined ? { amount } : {}),
-      ...(category !== undefined ? { category } : {}),
+      ...(category !== undefined ? { category: String(category).trim().toUpperCase() } : {}),
       ...(date !== undefined ? { date: new Date(date) } : {}),
       ...(note !== undefined ? { note } : {}),
       ...(currency !== undefined ? { currency } : {}),
       ...(beneficiary !== undefined ? { beneficiary } : {}),
       ...(beneficiaryUserId !== undefined ? { beneficiaryUserId: beneficiaryUserId || null } : {}),
       ...(placeId !== undefined ? { placeId: placeId || null } : {}),
+      ...(imageUrl !== undefined ? { imageUrl: patchImage(imageUrl) } : {}),
+      ...(receiptImageUrl !== undefined ? { receiptImageUrl: patchImage(receiptImageUrl) } : {}),
     },
     include: { author: { select: { id: true, name: true, avatarUrl: true } }, place: true },
   });

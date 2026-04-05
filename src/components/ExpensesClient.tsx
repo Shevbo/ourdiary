@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Plus, X, Wallet, QrCode, Pencil, Trash2 } from "lucide-react";
+import { Plus, X, Wallet, QrCode, Pencil, Trash2, ImagePlus, Camera } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -16,6 +16,8 @@ type Expense = {
   category: string;
   date: string;
   note: string | null;
+  imageUrl: string | null;
+  receiptImageUrl: string | null;
   beneficiary: string;
   beneficiaryUserId: string | null;
   placeId: string | null;
@@ -25,8 +27,6 @@ type Expense = {
 };
 
 type UserOpt = { id: string; name: string | null };
-
-const CATEGORIES = Object.entries(EXPENSE_CATEGORY_LABELS);
 
 const ReceiptQrScanner = dynamic(() => import("./ReceiptQrScanner"), { ssr: false });
 
@@ -91,8 +91,31 @@ export default function ExpensesClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showQrScanner, setShowQrScanner] = useState(false);
+  const [categoryOptions, setCategoryOptions] = useState<{ code: string; label: string }[]>([]);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [receiptImageUrl, setReceiptImageUrl] = useState<string | null>(null);
+  const [uploadBusy, setUploadBusy] = useState<"" | "img" | "receipt">("");
 
   const isAdmin = currentUserRole === "ADMIN" || currentUserRole === "SUPERADMIN";
+
+  const categoryLabel = useMemo(() => {
+    const m: Record<string, string> = { ...EXPENSE_CATEGORY_LABELS };
+    for (const c of categoryOptions) m[c.code] = c.label;
+    return m;
+  }, [categoryOptions]);
+
+  const categoryStackOrder = useMemo(
+    () => (categoryOptions.length ? categoryOptions.map((c) => c.code) : CATEGORY_STACK_ORDER),
+    [categoryOptions]
+  );
+
+  /** Пары [code, label] для фильтра и формы — из БД или запасной словарь */
+  const categoryPairs = useMemo((): [string, string][] => {
+    if (categoryOptions.length > 0) {
+      return categoryOptions.map((c) => [c.code, c.label]);
+    }
+    return Object.entries(EXPENSE_CATEGORY_LABELS) as [string, string][];
+  }, [categoryOptions]);
 
   useEffect(() => {
     setExpenses(initialExpenses);
@@ -101,15 +124,20 @@ export default function ExpensesClient({
   useEffect(() => {
     void (async () => {
       try {
-        const [uRes, pRes] = await Promise.all([
+        const [uRes, pRes, cRes] = await Promise.all([
           fetch("/api/users"),
           fetch("/api/expense-places"),
+          fetch("/api/expense-categories"),
         ]);
         if (uRes.ok) {
           const list = (await uRes.json()) as UserOpt[];
           setFamilyUsers(list);
         }
         if (pRes.ok) setPlaces(await pRes.json());
+        if (cRes.ok) {
+          const j = (await cRes.json()) as { categories: { code: string; label: string }[] };
+          setCategoryOptions(j.categories);
+        }
       } catch {
         /* ignore */
       }
@@ -127,6 +155,8 @@ export default function ExpensesClient({
     setBeneficiaryUserId("");
     setPlaceId("");
     setNewPlaceName("");
+    setImageUrl(null);
+    setReceiptImageUrl(null);
     setError("");
     setShowForm(true);
   }
@@ -142,8 +172,48 @@ export default function ExpensesClient({
     setBeneficiaryUserId(e.beneficiaryUserId ?? "");
     setPlaceId(e.placeId ?? "");
     setNewPlaceName("");
+    setImageUrl(e.imageUrl ?? null);
+    setReceiptImageUrl(e.receiptImageUrl ?? null);
     setError("");
     setShowForm(true);
+  }
+
+  async function uploadExpenseImage(f: File | null) {
+    if (!f) return;
+    setUploadBusy("img");
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const res = await fetch("/api/upload/expense-image", { method: "POST", body: fd });
+      const d = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok) {
+        setError(d.error ?? "Не удалось загрузить фото");
+        return;
+      }
+      if (d.url) setImageUrl(d.url);
+    } finally {
+      setUploadBusy("");
+    }
+  }
+
+  async function uploadReceiptImage(f: File | null) {
+    if (!f) return;
+    setUploadBusy("receipt");
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const res = await fetch("/api/upload/expense-receipt", { method: "POST", body: fd });
+      const d = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok) {
+        setError(d.error ?? "Не удалось обработать чек");
+        return;
+      }
+      if (d.url) setReceiptImageUrl(d.url);
+    } finally {
+      setUploadBusy("");
+    }
   }
 
   const filtered = useMemo(() => {
@@ -237,6 +307,8 @@ export default function ExpensesClient({
         beneficiary,
         beneficiaryUserId: beneficiary === "MEMBER" && beneficiaryUserId ? beneficiaryUserId : null,
         placeId: pid ?? null,
+        imageUrl: imageUrl ?? undefined,
+        receiptImageUrl: receiptImageUrl ?? undefined,
       };
       const res = await fetch(editingId ? `/api/expenses/${editingId}` : "/api/expenses", {
         method: editingId ? "PATCH" : "POST",
@@ -288,7 +360,7 @@ export default function ExpensesClient({
           className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-11 md:min-h-0"
         >
           <option value="">Все категории</option>
-          {CATEGORIES.map(([val, label]) => (
+          {categoryPairs.map(([val, label]) => (
             <option key={val} value={val}>{label}</option>
           ))}
         </select>
@@ -398,7 +470,7 @@ export default function ExpensesClient({
                 {totalByCategory.map(([cat, sum]) => (
                   <div key={cat}>
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-500 dark:text-slate-400">{EXPENSE_CATEGORY_LABELS[cat]}</span>
+                      <span className="text-slate-500 dark:text-slate-400">{categoryLabel[cat] ?? cat}</span>
                       <span className="text-slate-900 dark:text-white">{formatMoney(sum)}</span>
                     </div>
                     <div className="h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -431,11 +503,27 @@ export default function ExpensesClient({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-slate-900 dark:text-white text-sm font-medium">{e.title}</span>
-                        <span className={cn("text-xs px-2 py-0.5 rounded-full", CATEGORY_COLORS[e.category])}>
-                          {EXPENSE_CATEGORY_LABELS[e.category]}
+                        <span className={cn("text-xs px-2 py-0.5 rounded-full", CATEGORY_COLORS[e.category] ?? "bg-slate-500/20 text-slate-400")}>
+                          {categoryLabel[e.category] ?? e.category}
                         </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-xs text-slate-500">
+                        {(e.imageUrl || e.receiptImageUrl) && (
+                          <span className="flex gap-1 shrink-0">
+                            {e.imageUrl && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={e.imageUrl} alt="" className="h-11 w-11 rounded-lg object-cover border border-slate-200 dark:border-slate-700" />
+                            )}
+                            {e.receiptImageUrl && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={e.receiptImageUrl}
+                                alt="Чек"
+                                className="h-11 w-11 rounded-lg object-cover border border-slate-600 grayscale"
+                              />
+                            )}
+                          </span>
+                        )}
                         <span>{format(new Date(e.date), "d MMM yyyy", { locale: ru })}</span>
                         <span>·</span>
                         <span>{e.author.name ?? e.author.id}</span>
@@ -554,7 +642,7 @@ export default function ExpensesClient({
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  {CATEGORIES.map(([val, label]) => (
+                  {categoryPairs.map(([val, label]) => (
                     <option key={val} value={val}>{label}</option>
                   ))}
                 </select>
@@ -614,6 +702,51 @@ export default function ExpensesClient({
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
+
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3 space-y-3">
+                <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Вложения</p>
+                <div className="flex flex-wrap gap-3 items-center">
+                  <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-indigo-600 dark:text-indigo-400 cursor-pointer hover:bg-indigo-50 dark:hover:bg-slate-800">
+                    <ImagePlus className="w-4 h-4 shrink-0" />
+                    Картинка к расходу
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadBusy !== ""}
+                      onChange={(e) => void uploadExpenseImage(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  {imageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={imageUrl} alt="" className="h-14 w-14 rounded-lg object-cover border border-slate-200 dark:border-slate-600" />
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-3 items-center">
+                  <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <Camera className="w-4 h-4 shrink-0" />
+                    Фото чека (ч/б, до ~100 КБ)
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      disabled={uploadBusy !== ""}
+                      onChange={(e) => void uploadReceiptImage(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  {receiptImageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={receiptImageUrl}
+                      alt="Чек"
+                      className="h-14 w-14 rounded-lg object-cover border border-slate-600 grayscale"
+                    />
+                  )}
+                </div>
+                {uploadBusy && <p className="text-xs text-slate-500">Загрузка ({uploadBusy === "img" ? "фото" : "чек"})…</p>}
+              </div>
+
               {error && (
                 <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-600 dark:text-red-400 text-sm">{error}</div>
               )}

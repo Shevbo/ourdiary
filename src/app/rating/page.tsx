@@ -24,8 +24,13 @@ export default async function RatingPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
+  const isAdmin = session.user.role === "ADMIN" || session.user.role === "SUPERADMIN";
+
   const users = await prisma.user.findMany({
-    where: { isServiceUser: false },
+    where: {
+      isServiceUser: false,
+      ...(!isAdmin ? { id: session.user.id } : {}),
+    },
     select: {
       id: true,
       name: true,
@@ -69,7 +74,9 @@ export default async function RatingPage() {
         <Star className="w-6 h-6 text-amber-500 dark:text-yellow-400" />
         <div>
           <h1 className="text-slate-900 dark:text-white text-2xl font-bold">Сембон</h1>
-          <p className="text-slate-500 dark:text-slate-500 text-sm">Семейный бонус</p>
+          <p className="text-slate-500 dark:text-slate-500 text-sm">
+            {isAdmin ? "Семейный бонус — все участники" : "Только ваши сембоны"}
+          </p>
         </div>
       </div>
 

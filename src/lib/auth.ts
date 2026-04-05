@@ -17,6 +17,7 @@ function sessionUserFromDb(u: {
   name: string | null;
   avatarUrl: string | null;
   role: string;
+  isServiceUser: boolean;
 }) {
   return {
     id: u.id,
@@ -24,6 +25,7 @@ function sessionUserFromDb(u: {
     name: u.name,
     image: u.avatarUrl,
     role: u.role,
+    isServiceUser: u.isServiceUser,
   };
 }
 
@@ -107,6 +109,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = (user as { role?: string }).role ?? "MEMBER";
+        token.isServiceUser = Boolean((user as { isServiceUser?: boolean }).isServiceUser);
       }
       return token;
     },
@@ -114,6 +117,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+        session.user.isServiceUser = Boolean(token.isServiceUser);
       }
       return session;
     },

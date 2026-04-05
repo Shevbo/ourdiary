@@ -20,6 +20,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import AvatarImg from "./AvatarImg";
 
 const NAV_ORDER_KEY = "ourdiary-nav-order";
 
@@ -55,7 +56,11 @@ export default function Navigation() {
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "SUPERADMIN";
-  const [cabinetUnread, setCabinetUnread] = useState(0);
+  const [cabinetMe, setCabinetMe] = useState<{
+    unreadNotifications?: number;
+    avatarUrl?: string | null;
+    name?: string | null;
+  } | null>(null);
   const [navOrder, setNavOrder] = useState<string[]>(DEFAULT_HREFS);
   const [showOrderModal, setShowOrderModal] = useState(false);
 
@@ -93,10 +98,21 @@ export default function Navigation() {
     void (async () => {
       const res = await fetch("/api/me");
       if (!res.ok) return;
-      const data = (await res.json()) as { unreadNotifications?: number };
-      setCabinetUnread(data.unreadNotifications ?? 0);
+      setCabinetMe(await res.json());
     })();
   }, [status, pathname]);
+
+  useEffect(() => {
+    const onUpdate = () => {
+      void (async () => {
+        const res = await fetch("/api/me");
+        if (!res.ok) return;
+        setCabinetMe(await res.json());
+      })();
+    };
+    window.addEventListener("ourdiary-profile-updated", onUpdate);
+    return () => window.removeEventListener("ourdiary-profile-updated", onUpdate);
+  }, []);
 
   return (
     <>
@@ -121,9 +137,11 @@ export default function Navigation() {
           >
             <span className="relative flex-shrink-0">
               <User className="w-4 h-4" />
-              {cabinetUnread > 0 && (
+              {(cabinetMe?.unreadNotifications ?? 0) > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[1rem] h-4 px-0.5 rounded-full bg-rose-500 text-white text-[10px] leading-4 text-center font-semibold">
-                  {cabinetUnread > 99 ? "99+" : cabinetUnread}
+                  {(cabinetMe?.unreadNotifications ?? 0) > 99
+                    ? "99+"
+                    : cabinetMe?.unreadNotifications ?? 0}
                 </span>
               )}
             </span>
@@ -162,12 +180,15 @@ export default function Navigation() {
 
         <div className="border-t border-slate-200 dark:border-slate-800 px-3 py-4">
           <div className="flex items-center gap-2 px-3 py-2 mb-2">
-            <div className="w-7 h-7 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center">
-              <User className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-            </div>
+            <AvatarImg
+              src={cabinetMe?.avatarUrl}
+              alt=""
+              name={cabinetMe?.name ?? session?.user?.name ?? session?.user?.email}
+              size="sm"
+            />
             <div className="flex-1 min-w-0">
               <p className="text-slate-900 dark:text-white text-xs font-medium truncate">
-                {session?.user?.name ?? session?.user?.email}
+                {cabinetMe?.name ?? session?.user?.name ?? session?.user?.email}
               </p>
               <p className="text-slate-500 text-xs truncate">{session?.user?.email}</p>
             </div>

@@ -44,6 +44,30 @@ model User {
   @@map("users")
 }
 
+// ─── Новости приложения (лента «Что нового») ─────────────────────────────────
+
+model AppNews {
+  id        String   @id @default(cuid())
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  published Boolean  @default(true)
+
+  @@index([createdAt(sort: Desc)])
+  @@map("app_news")
+}
+
+// ─── Справочник категорий расходов (редактирует админ) ───────────────────────
+
+model ExpenseCategoryDefinition {
+  id        String  @id @default(cuid())
+  code      String  @unique
+  label     String
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  @@map("expense_category_definitions")
+}
+
 enum UserRole {
   SUPERADMIN
   ADMIN
@@ -158,9 +182,14 @@ model Expense {
   title       String
   amount      Decimal         @db.Decimal(10, 2)
   currency    String          @default("RUB")
-  category    ExpenseCategory @default(OTHER)
+  /// Код из ExpenseCategoryDefinition (например FOOD)
+  category    String          @default("OTHER")
   date        DateTime        @default(now())
   note        String?
+  /// Произвольное фото к расходу
+  imageUrl         String?
+  /// Сжатый скан чека (ч/б, до ~100 КБ)
+  receiptImageUrl  String?
   beneficiary ExpenseBeneficiary @default(FAMILY)
   beneficiaryUserId String?
   beneficiaryUser   User?    @relation("ExpenseBeneficiary", fields: [beneficiaryUserId], references: [id])
@@ -177,19 +206,6 @@ model Expense {
 enum ExpenseBeneficiary {
   FAMILY
   MEMBER
-}
-
-enum ExpenseCategory {
-  FOOD
-  TRANSPORT
-  ENTERTAINMENT
-  HEALTH
-  EDUCATION
-  CLOTHING
-  HOME
-  VACATION
-  SHOPPING_PLAN
-  OTHER
 }
 
 // ─── Задачи / обязанности ────────────────────────────────────────────────────

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
@@ -43,7 +42,6 @@ export async function POST(req: NextRequest) {
   let mime = (file.type || "").trim() || "application/octet-stream";
   let ext = ALLOWED.get(mime);
 
-  // Браузеры на Windows часто отдают пустой type или application/octet-stream — определяем по расширению.
   if (!ext && fileName) {
     const fromName = extFromFilename(fileName);
     if (fromName) {
@@ -59,26 +57,14 @@ export async function POST(req: NextRequest) {
   }
 
   if (!ext) {
-    return NextResponse.json(
-      {
-        error:
-          "Нужен файл JPEG, PNG, WebP или GIF. Если тип не определился, сохраните фото с одним из этих расширений или откройте в редакторе и пересохраните.",
-      },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Нужен JPEG, PNG, WebP или GIF" }, { status: 400 });
   }
 
   const buf = Buffer.from(await file.arrayBuffer());
-  const dir = path.join(process.cwd(), "public", "uploads", "avatars");
+  const dir = path.join(process.cwd(), "public", "uploads", "expenses");
   await mkdir(dir, { recursive: true });
   const name = `${randomUUID()}.${ext}`;
   await writeFile(path.join(dir, name), buf);
 
-  const url = `/uploads/avatars/${name}`;
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: { avatarUrl: url },
-  });
-
-  return NextResponse.json({ url });
+  return NextResponse.json({ url: `/uploads/expenses/${name}` });
 }

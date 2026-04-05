@@ -11,9 +11,14 @@ const NO_NAV_PATHS = ["/login", "/security"];
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const showNav = !NO_NAV_PATHS.includes(pathname);
+  const isTv = pathname === "/tv";
 
   if (!showNav) {
     return <>{children}</>;
+  }
+
+  if (isTv) {
+    return <div className="min-h-[100dvh] min-w-0 bg-slate-950">{children}</div>;
   }
 
   return (

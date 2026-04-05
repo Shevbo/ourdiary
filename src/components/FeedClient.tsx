@@ -1,17 +1,21 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
+import { format } from "date-fns";
+import { ru } from "date-fns/locale";
 import EventCard, { type EventCardData } from "./EventCard";
 import AddEventModal from "./AddEventModal";
 import EventDetailModal from "./EventDetailModal";
 import { useRouter } from "next/navigation";
 
 export default function FeedClient({
+  appNews,
   events: initialEvents,
   currentUserId,
   currentUserRole,
 }: {
+  appNews: { id: string; body: string; createdAt: string }[];
   events: EventCardData[];
   currentUserId: string;
   currentUserRole: string;
@@ -74,6 +78,31 @@ export default function FeedClient({
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
+      {appNews.length > 0 && (
+        <section className="mb-8 rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/90 to-violet-50/80 p-4 shadow-sm dark:border-indigo-900/50 dark:from-indigo-950/40 dark:to-slate-900/80">
+          <div className="mb-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-indigo-500 dark:text-indigo-400 shrink-0" />
+              <h2 className="text-slate-900 dark:text-white font-bold text-lg">Что нового в приложении</h2>
+            </div>
+            <p className="text-sm text-indigo-600 dark:text-indigo-300 mt-1 pl-7">Что мы тут запилили 😊</p>
+          </div>
+          <div className="space-y-4">
+            {appNews.map((n) => (
+              <article
+                key={n.id}
+                className="rounded-xl bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-700 px-4 py-3 text-slate-800 dark:text-slate-200 text-sm leading-relaxed"
+              >
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">
+                  {format(new Date(n.createdAt), "d MMMM yyyy", { locale: ru })}
+                </p>
+                <p className="whitespace-pre-wrap">{n.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-slate-900 dark:text-white text-2xl font-bold">Лента событий</h1>
         <button

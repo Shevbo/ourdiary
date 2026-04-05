@@ -3,6 +3,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+async function validateCategoryCode(code: string) {
+  const row = await prisma.expenseCategoryDefinition.findUnique({ where: { code } });
+  if (!row) return { ok: false as const, error: "Неизвестная категория" };
+  if (!row.isActive) return { ok: false as const, error: "Категория отключена" };
+  return { ok: true as const };
+}
+
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
@@ -54,17 +61,35 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
 
   const body = await req.json();
-  const { title, amount, category, date, note, currency, beneficiary, beneficiaryUserId, placeId } = body;
+  const {
+    title,
+    amount,
+    category,
+    date,
+    note,
+    currency,
+    beneficiary,
+    beneficiaryUserId,
+    placeId,
+    imageUrl,
+    receiptImageUrl,
+  } = body;
 
   if (!title || !amount) {
     return NextResponse.json({ error: "title и amount обязательны" }, { status: 400 });
+  }
+
+  const cat = typeof category === "string" && category.trim() ? category.trim().toUpperCase() : "OTHER";
+  const v = await validateCategoryCode(cat);
+  if (!v.ok) {
+    return NextResponse.json({ error: v.error }, { status: 400 });
   }
 
   const expense = await prisma.expense.create({
     data: {
       title,
       amount,
-      category: category ?? "OTHER",
+      category: cat,
       date: date ? new Date(date) : new Date(),
       note,
       currency: currency ?? "RUB",
@@ -72,6 +97,9 @@ export async function POST(req: NextRequest) {
       beneficiary: beneficiary ?? "FAMILY",
       beneficiaryUserId: beneficiaryUserId || undefined,
       placeId: placeId || undefined,
+      imageUrl: typeof imageUrl === "string" && imageUrl.startsWith("/uploads/") ? imageUrl : undefined,
+      receiptImageUrl:
+        typeof receiptImageUrl === "string" && receiptImageUrl.startsWith("/uploads/") ? receiptImageUrl : undefined,
     },
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },

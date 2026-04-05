@@ -5,8 +5,6 @@ import { redirect } from "next/navigation";
 import ExpensesClient from "@/components/ExpensesClient";
 import { subMonths, startOfMonth, format } from "date-fns";
 import { ru } from "date-fns/locale";
-import type { ExpenseCategory } from "@prisma/client";
-
 export const dynamic = "force-dynamic";
 
 export default async function ExpensesPage() {
@@ -40,7 +38,7 @@ export default async function ExpensesPage() {
   }));
 
   const bucket: Record<string, number> = {};
-  const bucketByCat: Record<string, Partial<Record<ExpenseCategory, number>>> = {};
+  const bucketByCat: Record<string, Partial<Record<string, number>>> = {};
   for (const row of forChart) {
     const k = format(row.date, "yyyy-MM");
     bucket[k] = (bucket[k] ?? 0) + Number(row.amount);
@@ -52,7 +50,7 @@ export default async function ExpensesPage() {
   const monthlyTotals: {
     label: string;
     total: number;
-    byCategory: Partial<Record<ExpenseCategory, number>>;
+    byCategory: Partial<Record<string, number>>;
   }[] = [];
   for (let i = 11; i >= 0; i--) {
     const d = startOfMonth(subMonths(new Date(), i));

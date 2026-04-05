@@ -1,6 +1,4 @@
-import type { ExpenseCategory } from "@prisma/client";
-
-const RULES: { cat: ExpenseCategory; re: RegExp[] }[] = [
+const RULES: { cat: string; re: RegExp[] }[] = [
   {
     cat: "FOOD",
     re: [
@@ -40,7 +38,7 @@ const RULES: { cat: ExpenseCategory; re: RegExp[] }[] = [
   },
 ];
 
-export function guessExpenseCategoryFromProductName(name: string): ExpenseCategory {
+export function guessExpenseCategoryFromProductName(name: string): string {
   const n = name.trim();
   if (!n) return "OTHER";
   for (const { cat, re } of RULES) {

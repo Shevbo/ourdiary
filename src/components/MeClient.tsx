@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { DarumaIcon, DREAM_STATUS_LABEL } from "./DarumaStatus";
 import AvatarImg from "./AvatarImg";
-import { LogOut, User, Bell, Sparkles, Star, Wallet } from "lucide-react";
+import { LogOut, User, Bell, Sparkles, Star, Wallet, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { APP_VERSION_DISPLAY } from "@/lib/app-version";
 
 type Profile = {
   id: string;
@@ -46,8 +47,10 @@ export default function MeClient() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [avatarError, setAvatarError] = useState("");
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [myDreams, setMyDreams] = useState<DreamShelf[]>([]);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void (async () => {
@@ -104,16 +107,23 @@ export default function MeClient() {
   async function onAvatar(f: File | null) {
     if (!f) return;
     setUploading(true);
+    setAvatarError("");
     try {
       const fd = new FormData();
       fd.append("file", f);
       const res = await fetch("/api/upload/avatar", { method: "POST", body: fd });
-      if (res.ok) {
-        const me2 = await fetch("/api/me");
-        if (me2.ok) setProfile(await me2.json());
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok) {
+        setAvatarError(data.error ?? "Не удалось загрузить фото");
+        return;
       }
+      const me2 = await fetch("/api/me");
+      if (me2.ok) setProfile(await me2.json());
+      router.refresh();
+      window.dispatchEvent(new CustomEvent("ourdiary-profile-updated"));
     } finally {
       setUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
     }
   }
 
@@ -163,6 +173,33 @@ export default function MeClient() {
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/80">
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+          <Info className="h-4 w-4 text-indigo-500" />
+          О системе
+        </h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+          <strong className="text-slate-800 dark:text-slate-200">Наш дневник</strong> — версия{" "}
+          <span className="font-mono text-indigo-600 dark:text-indigo-400">{APP_VERSION_DISPLAY}</span>. Лента событий,
+          календарь, расходы с фото и чеками, сембоны, задачи, мечты и режим TV для большого экрана.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/instruction"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            Открыть инструкцию
+          </Link>
+          <a
+            href="/api/instruction-file"
+            download
+            className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200 dark:hover:bg-indigo-900/40"
+          >
+            Скачать инструкцию (.md)
+          </a>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/80">
         <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Отчёты</h2>
         <div className="flex flex-wrap gap-3">
           <Link
@@ -189,13 +226,15 @@ export default function MeClient() {
           <div>
             <label className="text-xs text-slate-500 block mb-1">Фото</label>
             <input
+              ref={avatarInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
               disabled={uploading}
               onChange={(e) => void onAvatar(e.target.files?.[0] ?? null)}
               className="text-sm"
             />
             {uploading && <p className="text-xs text-slate-500 mt-1">Загрузка…</p>}
+            {avatarError && <p className="text-xs text-red-600 mt-1">{avatarError}</p>}
           </div>
         </div>
 

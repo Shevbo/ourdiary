@@ -10,6 +10,13 @@ export default async function HomePage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
+  const appNews = await prisma.appNews.findMany({
+    where: { published: true },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: { id: true, body: true, createdAt: true },
+  });
+
   const events = await prisma.event.findMany({
     take: 50,
     orderBy: { date: "desc" },
@@ -44,8 +51,14 @@ export default async function HomePage() {
     reactions: packReactions(e.reactions, session.user.id),
   }));
 
+  const newsSerialized = appNews.map((n) => ({
+    ...n,
+    createdAt: n.createdAt.toISOString(),
+  }));
+
   return (
     <FeedClient
+      appNews={newsSerialized}
       events={serialized}
       currentUserId={session.user.id}
       currentUserRole={session.user.role}

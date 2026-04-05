@@ -5,6 +5,8 @@ import { Shield, Plus, X, Trash2, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import AvatarImg from "./AvatarImg";
+import AdminAppNewsSection from "./AdminAppNewsSection";
+import AdminExpenseCategoriesSection from "./AdminExpenseCategoriesSection";
 
 type UserRow = {
   id: string;
@@ -269,6 +271,9 @@ export default function AdminClient({
           </tbody>
         </table>
       </div>
+
+      <AdminAppNewsSection />
+      <AdminExpenseCategoriesSection />
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
