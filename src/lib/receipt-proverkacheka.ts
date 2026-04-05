@@ -1,19 +1,33 @@
-import type { FnsQrParams } from "./fns-qr";
+import { parseFnsQrRaw, type FnsQrParams } from "./fns-qr";
 
 export type ReceiptLine = { name: string; sum: number; quantity?: number };
 
+export type ProverkachekaInput =
+  | { qrraw: string }
+  | { file: Buffer; filename: string; mime: string };
+
+export type ProverkachekaResult =
+  | { ok: true; lines: ReceiptLine[]; parsedQr: FnsQrParams; rawJson: unknown }
+  | { ok: false; error: string; code?: number };
+
 /**
- * Открытый API стороннего сервиса проверки чеков (по образцу документации proverkacheka.com):
- * POST multipart: token, qrraw — возвращает JSON с позициями чека.
- * Регистрация и токен: https://proverkacheka.com/ (лимиты по тарифу сервиса).
+ * API proverkacheka.com: POST multipart `token` + `qrraw` или `qrfile` (фото чека с QR).
+ * Документация: https://proverkacheka.com/ — лимиты бесплатного тарифа (часто ~15 запросов/сутки).
  */
-export async function fetchReceiptLinesProverkacheka(
-  qrraw: string,
-  token: string
-): Promise<ReceiptLine[] | null> {
+export async function callProverkachekaCheck(
+  token: string,
+  input: ProverkachekaInput
+): Promise<ProverkachekaResult> {
   const form = new FormData();
-  form.append("qrraw", qrraw.trim());
   form.append("token", token.trim());
+  if ("qrraw" in input) {
+    form.append("qrraw", input.qrraw.trim());
+  } else {
+    const blob = new Blob([new Uint8Array(input.file)], { type: input.mime || "image/jpeg" });
+    const rawName = input.filename?.trim() || "receipt.jpg";
+    const fileName = /\.(jpe?g|png|webp|heic|gif)$/i.test(rawName) ? rawName : `${rawName.replace(/\.$/, "") || "receipt"}.jpg`;
+    form.append("qrfile", blob, fileName);
+  }
 
   const res = await fetch("https://proverkacheka.com/api/v1/check/get", {
     method: "POST",
@@ -22,23 +36,161 @@ export async function fetchReceiptLinesProverkacheka(
   });
 
   const text = await res.text();
-  if (!res.ok) return null;
-
   let data: unknown;
   try {
     data = JSON.parse(text) as unknown;
   } catch {
-    return null;
+    return {
+      ok: false,
+      error: res.ok ? "Некорректный ответ API проверки чека" : `Сервис недоступен (HTTP ${res.status})`,
+    };
+  }
+
+  if (!data || typeof data !== "object") {
+    return { ok: false, error: "Пустой ответ API" };
+  }
+  const root = data as Record<string, unknown>;
+  if (typeof root.code === "number" && root.code !== 1) {
+    const msg =
+      (typeof root.message === "string" && root.message) ||
+      (typeof root.data === "string" && root.data) ||
+      (typeof root.description === "string" && root.description) ||
+      `Ошибка проверки чека (код ${root.code})`;
+    return { ok: false, error: msg, code: root.code };
   }
 
   const payload = extractProverkachekaPayload(data);
-  if (payload === null) return null;
+  const lines = extractLinesFromUnknownJson(payload ?? data);
+  if (lines.length === 0) {
+    return { ok: false, error: "В ответе чека нет позиций для импорта" };
+  }
 
-  const lines = extractLinesFromUnknownJson(payload);
-  return lines.length > 0 ? lines : null;
+  const fallbackQr = "qrraw" in input ? input.qrraw.trim() : undefined;
+  const parsedQr = buildParsedFromProverkachekaResponse(lines, data, fallbackQr);
+  return { ok: true, lines, parsedQr, rawJson: data };
 }
 
-/** Ответ API: `{ code: 1, data: { json: { … позиции … } } }`; при ошибке `code !== 1`. */
+/** Совместимость: только строка QR, без фото. */
+export async function fetchReceiptLinesProverkacheka(
+  qrraw: string,
+  token: string
+): Promise<ReceiptLine[] | null> {
+  const r = await callProverkachekaCheck(token, { qrraw });
+  if (!r.ok) return null;
+  return r.lines;
+}
+
+function buildParsedFromProverkachekaResponse(
+  lines: ReceiptLine[],
+  rawJson: unknown,
+  fallbackQrRaw?: string
+): FnsQrParams {
+  const qrRaw = extractQrRawStringFromJson(rawJson) ?? fallbackQrRaw ?? "";
+  if (qrRaw) {
+    const p = parseFnsQrRaw(qrRaw);
+    if (p) return p;
+  }
+  const total = lines.reduce((s, l) => s + l.sum, 0);
+  return {
+    raw: qrRaw || "proverkacheka",
+    t: extractDateTFromJson(rawJson),
+    sumRub: total,
+    fn: extractFieldByKey(rawJson, "fn"),
+    i: extractFieldByKey(rawJson, "i") ?? extractFieldByKey(rawJson, "fd"),
+  };
+}
+
+function extractQrRawStringFromJson(data: unknown): string | null {
+  const visit = (node: unknown): string | null => {
+    if (typeof node === "string") {
+      const s = node.trim();
+      if (s.includes("fn=") && (s.includes("t=") || s.includes("fp=") || s.includes("s="))) return s;
+      if (s.startsWith("http") && s.includes("fn=")) return s;
+      return null;
+    }
+    if (!node || typeof node !== "object") return null;
+    if (Array.isArray(node)) {
+      for (const el of node) {
+        const r = visit(el);
+        if (r) return r;
+      }
+      return null;
+    }
+    for (const v of Object.values(node)) {
+      const r = visit(v);
+      if (r) return r;
+    }
+    return null;
+  };
+  return visit(data);
+}
+
+function extractFieldByKey(data: unknown, key: string): string | undefined {
+  const visit = (node: unknown): string | undefined => {
+    if (!node || typeof node !== "object") return undefined;
+    if (Array.isArray(node)) {
+      for (const el of node) {
+        const r = visit(el);
+        if (r) return r;
+      }
+      return undefined;
+    }
+    const o = node as Record<string, unknown>;
+    if (key in o) {
+      const v = o[key];
+      if (typeof v === "string" && v) return v;
+      if (typeof v === "number" && Number.isFinite(v)) return String(v);
+    }
+    for (const v of Object.values(o)) {
+      const r = visit(v);
+      if (r) return r;
+    }
+    return undefined;
+  };
+  return visit(data);
+}
+
+/** Параметр t для dateFromFnsT: YYYYMMDDTHHmm из unix / dateTime в JSON. */
+function extractDateTFromJson(data: unknown): string | undefined {
+  const visit = (node: unknown): number | null => {
+    if (typeof node === "number" && node > 1_540_000_000 && node < 2_000_000_000) return Math.floor(node);
+    if (typeof node === "number" && node > 1_540_000_000_000 && node < 2_000_000_000_000)
+      return Math.floor(node / 1000);
+    if (!node || typeof node !== "object") return null;
+    const o = node as Record<string, unknown>;
+    if ("dateTime" in o) {
+      const n =
+        typeof o.dateTime === "number"
+          ? o.dateTime
+          : typeof o.dateTime === "string"
+            ? parseFloat(o.dateTime)
+            : NaN;
+      if (Number.isFinite(n)) {
+        if (n > 1e12) return Math.floor(n / 1000);
+        if (n > 1e9) return Math.floor(n);
+      }
+    }
+    if (Array.isArray(node)) {
+      for (const el of node) {
+        const r = visit(el);
+        if (r) return r;
+      }
+      return null;
+    }
+    for (const v of Object.values(o)) {
+      const r = visit(v);
+      if (r) return r;
+    }
+    return null;
+  };
+  const unix = visit(data);
+  if (!unix) return undefined;
+  const d = new Date(unix * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}`;
+}
+
+/** Ответ API: `{ code: 1, data: { json: { … } } }`. */
 function extractProverkachekaPayload(data: unknown): unknown {
   if (!data || typeof data !== "object") return data;
   const o = data as Record<string, unknown>;
@@ -115,4 +267,12 @@ export function fallbackReceiptLinesFromFnsParams(parsed: FnsQrParams): ReceiptL
     .filter(Boolean)
     .join(" ");
   return [{ name: title || "Чек по QR", sum: Math.round(parsed.sumRub * 100) / 100 }];
+}
+
+/** HTTP-статус для ответа клиенту при ошибке API (лимит бесплатного тарифа и т.п.). */
+export function httpStatusForProverkachekaError(error: string, code?: number): number {
+  if (code === 429) return 429;
+  if (/лимит|исчерпан|превыш|limit|exceeded|429/i.test(error)) return 429;
+  if (code === 2 || code === 3) return 429;
+  return 422;
 }

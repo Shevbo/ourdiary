@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Plus, X, Wallet, QrCode, Pencil, Trash2, ImagePlus, Camera } from "lucide-react";
+import { Plus, X, Wallet, QrCode, Pencil, Trash2, ImagePlus, Camera, FileImage } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -259,6 +259,36 @@ export default function ExpensesClient({
         const d = (await res.json().catch(() => ({}))) as { error?: string };
         if (!res.ok) {
           setError(d.error ?? "Не удалось импортировать чек");
+          return;
+        }
+        setShowQrScanner(false);
+        setShowForm(false);
+        router.refresh();
+      } catch {
+        setError("Ошибка соединения");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [router]
+  );
+
+  const importFromReceiptPhoto = useCallback(
+    async (file: File | null) => {
+      if (!file?.size) return;
+      if (file.size > 8 * 1024 * 1024) {
+        setError("Файл больше 8 МБ");
+        return;
+      }
+      setError("");
+      setLoading(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/expenses/from-receipt", { method: "POST", body: fd });
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          setError(d.error ?? "Не удалось импортировать чек по фото");
           return;
         }
         setShowQrScanner(false);
@@ -578,15 +608,34 @@ export default function ExpensesClient({
               </h2>
               <div className="flex items-center gap-1">
                 {!editingId && (
-                  <button
-                    type="button"
-                    onClick={() => setShowQrScanner(true)}
-                    className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0"
-                    title="Сканировать QR чека"
-                  >
-                    <QrCode className="h-4 w-4 shrink-0" />
-                    <span className="hidden sm:inline">QR чека</span>
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowQrScanner(true)}
+                      className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0"
+                      title="Сканировать QR чека"
+                    >
+                      <QrCode className="h-4 w-4 shrink-0" />
+                      <span className="hidden sm:inline">QR чека</span>
+                    </button>
+                    <label
+                      className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0"
+                      title="Загрузить фото чека — распознавание QR на сервере (нужен PROVERKACHEKA_API_TOKEN)"
+                    >
+                      <FileImage className="h-4 w-4 shrink-0" />
+                      <span className="hidden sm:inline">Фото чека</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={loading}
+                        onChange={(e) => {
+                          void importFromReceiptPhoto(e.target.files?.[0] ?? null);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  </>
                 )}
                 <button
                   type="button"
