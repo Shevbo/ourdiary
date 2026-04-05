@@ -35,12 +35,15 @@ VAPID_SUBJECT="mailto:admin@example.com"
 # Прод: единый каталог Shectory (логин как на shectory.ru)
 SHECTORY_AUTH_BRIDGE_SECRET="тот-же-секрет-что-на-портале"
 SHECTORY_PORTAL_URL="https://shectory.ru"
+# Если пользователи вводят только локальную часть email (без @), подставить домен для проверки на портале
+# (каталог принимает только полный email). Для учётки bshevelev@mail.ru: mail.ru
+SHECTORY_LOGIN_EMAIL_DOMAIN="mail.ru"
 AUTH_TRUST_HOST="true"
 ```
 
 ### Единый вход Shectory (каталог портала)
 
-Если задан **`SHECTORY_AUTH_BRIDGE_SECRET`**, **сначала** пароль проверяется в **общем каталоге Shectory** на портале (`POST /api/internal/verify-portal-credentials` → `portal_users`), затем в БД дневника выполняется **upsert** (роль: `superadmin` → `SUPERADMIN`, `admin` → `ADMIN`, иначе `MEMBER`). Если учётки в каталоге нет или пароль не подошёл к порталу, но в дневнике есть **локальный** `passwordHash` (например пользователь заведён в **админке дневника**), выполняется вход по этому паролю — так семейные учётки без дублирования в портале остаются рабочими. Источник истины для «портальных» пользователей — **shectory.ru**; локальный пароль — только для учёток без записи в `portal_users`.
+Если задан **`SHECTORY_AUTH_BRIDGE_SECRET`**, **сначала** пароль проверяется в **общем каталоге Shectory** на портале (`POST /api/internal/verify-portal-credentials` → `portal_users`, только **полный email**), затем в БД дневника выполняется **upsert** (роль: `superadmin` → `SUPERADMIN`, `admin` → `ADMIN`, иначе `MEMBER`). Поле входа: **e-mail** или **имя для входа** из профиля дневника (тогда email для портала берётся из БД). Если ввод **без «@»** и пользователя ещё нет в БД дневника, задайте **`SHECTORY_LOGIN_EMAIL_DOMAIN`** (например `mail.ru` для `bshevelev` → `bshevelev@mail.ru`). Если учётки в каталоге нет или пароль не подошёл к порталу, но в дневнике есть **локальный** `passwordHash` (например пользователь заведён в **админке дневника**), выполняется вход по этому паролю — так семейные учётки без дублирования в портале остаются рабочими. Источник истины для «портальных» пользователей — **shectory.ru**; локальный пароль — только для учёток без записи в `portal_users`.
 
 1. Сгенерировать секрет: `openssl rand -hex 32`
 2. Добавить **одинаковое** значение в `.env` портала на VDS (`shectory-portal`) и в `.env` нашего дневника на hoster.
@@ -86,6 +89,15 @@ pm2 save
 ```
 
 Переопределить порт: `OURDIARY_PORT=3010 pm2 start ecosystem.config.cjs` (и обновить `NEXTAUTH_URL` / `NEXT_PUBLIC_APP_URL` под внешний URL).
+
+## Prisma Studio в админке
+
+Для ролей **ADMIN** и **SUPERADMIN** доступны:
+
+- **`/admin/prisma-studio`** — встроенный Prisma Studio (схема и данные таблиц в браузере);
+- **`POST /api/admin/studio`** — BFF для Studio (SQL только после проверки сессии администратора).
+
+Публичный URL совпадает с приложением (например `https://ourdiary.shectory.ru/admin/prisma-studio` за nginx). Это не прямой доступ к PostgreSQL из интернета без авторизации — только через сессию админа приложения. Кнопка «Prisma Studio» на странице **`/admin`**.
 
 ## Seed — создание суперадмина
 

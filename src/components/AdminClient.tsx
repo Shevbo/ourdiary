@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { Shield, Plus, X, Trash2, Pencil } from "lucide-react";
+import { Shield, Plus, X, Trash2, Pencil, Database } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import AvatarImg from "./AvatarImg";
@@ -177,10 +178,20 @@ export default function AdminClient({
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
-      <div className="flex items-center gap-3 mb-6">
-        <Shield className="w-6 h-6 text-indigo-400" />
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <Shield className="w-6 h-6 text-indigo-400 shrink-0" />
         <h1 className="text-slate-900 dark:text-white text-2xl font-bold">Администрирование</h1>
+        <Link
+          href="/admin/prisma-studio"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        >
+          <Database className="w-4 h-4 text-indigo-500" />
+          Prisma Studio
+        </Link>
         <button
+          type="button"
           onClick={() => {
             setShowForm(true);
             setLoginName("");
