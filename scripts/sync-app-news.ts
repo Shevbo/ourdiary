@@ -5,6 +5,7 @@
  * Читает src/content/app-news-latest.md. Если файл начинается с # SKIP — выход без изменений.
  * Если такой текст уже есть в БД — дубликат не создаётся.
  */
+import "dotenv/config";
 import { readFile } from "fs/promises";
 import path from "path";
 import { prisma } from "../src/lib/prisma";
