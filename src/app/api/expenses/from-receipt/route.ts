@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dateFromFnsT, parseFnsQrRaw } from "@/lib/fns-qr";
 import { guessExpenseCategoryFromProductName } from "@/lib/receipt-category";
+import { normalizeReceiptImageForApi } from "@/lib/receipt-image-normalize";
 import {
   callProverkachekaCheck,
   fallbackReceiptLinesFromFnsParams,
@@ -72,22 +73,28 @@ export async function POST(req: Request) {
   let source: "proverkacheka" | "qr_sum" = "qr_sum";
 
   if (imageBuffer && token) {
-    const r = await callProverkachekaCheck(token, {
-      file: imageBuffer,
-      filename: imageName,
-      mime: imageMime,
-    });
-    if (!r.ok) {
-      return NextResponse.json(
-        { error: r.error },
-        { status: httpStatusForProverkachekaError(r.error, r.code) }
-      );
+    try {
+      const prepared = await normalizeReceiptImageForApi(imageBuffer, imageMime, imageName);
+      const r = await callProverkachekaCheck(token, {
+        file: prepared.buffer,
+        filename: prepared.filename,
+        mime: prepared.mime,
+      });
+      if (!r.ok) {
+        return NextResponse.json(
+          { error: r.error },
+          { status: httpStatusForProverkachekaError(r.error, r.code) }
+        );
+      }
+      lines = r.lines;
+      source = "proverkacheka";
+      const expenseDate = dateFromFnsT(r.parsedQr.t) ?? new Date();
+      const metaNote = `Импорт чека по фото (${lines.length} поз.) ФН ${r.parsedQr.fn ?? "—"} ФД ${r.parsedQr.i ?? "—"}`;
+      return await persistExpenseLines(session.user.id, lines, expenseDate, metaNote);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Ошибка при обработке фото чека";
+      return NextResponse.json({ error: msg }, { status: 500 });
     }
-    lines = r.lines;
-    source = "proverkacheka";
-    const expenseDate = dateFromFnsT(r.parsedQr.t) ?? new Date();
-    const metaNote = `Импорт чека по фото (${lines.length} поз.) ФН ${r.parsedQr.fn ?? "—"} ФД ${r.parsedQr.i ?? "—"}`;
-    return await persistExpenseLines(session.user.id, lines, expenseDate, metaNote);
   }
 
   const parsed = parseFnsQrRaw(qrraw!);

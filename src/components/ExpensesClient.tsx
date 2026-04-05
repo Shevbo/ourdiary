@@ -290,9 +290,16 @@ export default function ExpensesClient({
         const fd = new FormData();
         fd.append("file", file);
         const res = await fetch("/api/expenses/from-receipt", { method: "POST", body: fd });
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        const raw = await res.text();
         if (!res.ok) {
-          const msg = d.error ?? "Не удалось импортировать чек по фото";
+          let msg = "Не удалось импортировать чек по фото";
+          try {
+            const d = JSON.parse(raw) as { error?: string; message?: string };
+            msg = d.error ?? d.message ?? (raw ? raw.slice(0, 400) : msg);
+          } catch {
+            if (raw) msg = raw.length > 400 ? `${raw.slice(0, 400)}…` : raw;
+            else msg = `Ошибка сервера (HTTP ${res.status})`;
+          }
           setError(msg);
           setReceiptQrUploadError(msg);
           return;

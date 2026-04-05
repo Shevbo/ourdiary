@@ -40,9 +40,12 @@ export async function callProverkachekaCheck(
   try {
     data = JSON.parse(text) as unknown;
   } catch {
+    const snippet = text.replace(/\s+/g, " ").slice(0, 160);
     return {
       ok: false,
-      error: res.ok ? "Некорректный ответ API проверки чека" : `Сервис недоступен (HTTP ${res.status})`,
+      error: res.ok
+        ? `Некорректный ответ API (не JSON)${snippet ? `: ${snippet}` : ""}`
+        : `Сервис проверки чека недоступен (HTTP ${res.status})`,
     };
   }
 
@@ -50,13 +53,10 @@ export async function callProverkachekaCheck(
     return { ok: false, error: "Пустой ответ API" };
   }
   const root = data as Record<string, unknown>;
-  if (typeof root.code === "number" && root.code !== 1) {
-    const msg =
-      (typeof root.message === "string" && root.message) ||
-      (typeof root.data === "string" && root.data) ||
-      (typeof root.description === "string" && root.description) ||
-      `Ошибка проверки чека (код ${root.code})`;
-    return { ok: false, error: msg, code: root.code };
+  const apiCode = normalizeProverkachekaCode(root.code);
+  if (apiCode !== null && apiCode !== 1) {
+    const msg = extractProverkachekaErrorMessage(root, apiCode);
+    return { ok: false, error: msg, code: apiCode };
   }
 
   const payload = extractProverkachekaPayload(data);
@@ -68,6 +68,36 @@ export async function callProverkachekaCheck(
   const fallbackQr = "qrraw" in input ? input.qrraw.trim() : undefined;
   const parsedQr = buildParsedFromProverkachekaResponse(lines, data, fallbackQr);
   return { ok: true, lines, parsedQr, rawJson: data };
+}
+
+/** API иногда отдаёт code строкой (`"1"`, `"2"`). */
+function normalizeProverkachekaCode(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = parseInt(v.trim(), 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function extractProverkachekaErrorMessage(root: Record<string, unknown>, code: number): string {
+  const fromData = root.data;
+  let dataStr = "";
+  if (typeof fromData === "string") dataStr = fromData;
+  else if (fromData && typeof fromData === "object" && !Array.isArray(fromData)) {
+    const d = fromData as Record<string, unknown>;
+    dataStr =
+      (typeof d.message === "string" && d.message) ||
+      (typeof d.error === "string" && d.error) ||
+      (typeof d.text === "string" && d.text) ||
+      "";
+  }
+  return (
+    (typeof root.message === "string" && root.message) ||
+    dataStr ||
+    (typeof root.description === "string" && root.description) ||
+    `Ошибка проверки чека (код ${code})`
+  );
 }
 
 /** Совместимость: только строка QR, без фото. */
@@ -194,7 +224,8 @@ function extractDateTFromJson(data: unknown): string | undefined {
 function extractProverkachekaPayload(data: unknown): unknown {
   if (!data || typeof data !== "object") return data;
   const o = data as Record<string, unknown>;
-  if (typeof o.code === "number" && o.code !== 1) return null;
+  const c = normalizeProverkachekaCode(o.code);
+  if (c !== null && c !== 1) return null;
   const d = o.data;
   if (d && typeof d === "object") {
     const dr = d as Record<string, unknown>;
