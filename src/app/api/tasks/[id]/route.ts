@@ -62,7 +62,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (title !== undefined) data.title = String(title).trim();
   if (description !== undefined) data.description = description === null ? null : String(description);
   if (dueDate !== undefined) data.dueDate = dueDate ? new Date(String(dueDate)) : null;
-  if (assigneeId !== undefined) data.assigneeId = assigneeId ? String(assigneeId) : null;
+  if (assigneeId !== undefined) {
+    if (assigneeId) {
+      const u = await prisma.user.findUnique({ where: { id: String(assigneeId) } });
+      if (!u || u.isServiceUser) {
+        return NextResponse.json({ error: "Нельзя назначить этого исполнителя" }, { status: 400 });
+      }
+    }
+    data.assigneeId = assigneeId ? String(assigneeId) : null;
+  }
   if (points !== undefined) data.points = Math.max(0, Math.min(9999, Number(points)));
   if (authorSeeksSembons !== undefined) data.authorSeeksSembons = Boolean(authorSeeksSembons);
   if (isRecurring !== undefined) data.isRecurring = Boolean(isRecurring);

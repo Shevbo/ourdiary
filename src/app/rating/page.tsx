@@ -24,6 +24,7 @@ export default async function RatingPage() {
   if (!session) redirect("/login");
 
   const users = await prisma.user.findMany({
+    where: { isServiceUser: false },
     select: {
       id: true,
       name: true,

@@ -23,6 +23,7 @@ export default async function TvPage() {
       take: 8,
     }),
     prisma.user.findMany({
+      where: { isServiceUser: false },
       select: {
         id: true,
         name: true,

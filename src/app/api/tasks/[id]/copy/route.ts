@@ -19,6 +19,12 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       ? initialNextDueUtc(src.recurrenceKind, src.recurrencePayload, src.dueDate ?? src.nextDueAt, new Date())
       : src.dueDate ?? src.nextDueAt;
 
+  let assigneeId = src.assigneeId;
+  if (assigneeId) {
+    const u = await prisma.user.findUnique({ where: { id: assigneeId } });
+    if (!u || u.isServiceUser) assigneeId = null;
+  }
+
   const copy = await prisma.task.create({
     data: {
       title: src.title,
@@ -26,13 +32,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       dueDate: src.dueDate,
       nextDueAt: nextDue,
       points: src.points,
-      authorSeeksSembons: src.authorSeeksSembons,
+      authorSeeksSembons: false,
       isRecurring: src.isRecurring,
       recurrenceKind: src.recurrenceKind,
       recurrencePayload: src.recurrencePayload === null ? undefined : (src.recurrencePayload as object),
       status: "DRAFT",
       authorId: session.user.id,
-      assigneeId: src.assigneeId,
+      assigneeId,
     },
     include: taskInclude,
   });

@@ -19,7 +19,7 @@ export default async function TasksPage() {
       },
       orderBy: [{ nextDueAt: "asc" }, { dueDate: "asc" }, { createdAt: "desc" }],
     }),
-    prisma.user.findMany({ select: { id: true, name: true } }),
+    prisma.user.findMany({ where: { isServiceUser: false }, select: { id: true, name: true } }),
   ]);
 
   type TaskRow = (typeof tasks)[number];

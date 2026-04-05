@@ -214,12 +214,8 @@ export default function TaskDetailClient({
             </dd>
           </div>
           <div>
-            <dt className="text-slate-500 text-xs">Сембоны (награда)</dt>
+            <dt className="text-slate-500 text-xs">Сембоны (награда за выполнение)</dt>
             <dd className="text-amber-700 dark:text-amber-400">+{task.points}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500 text-xs">Сембоны постановщику</dt>
-            <dd className="text-slate-900 dark:text-white">{task.authorSeeksSembons ? "Да (нужно согласование)" : "Нет"}</dd>
           </div>
           {task.isRecurring && task.recurrenceKind !== "NONE" && (
             <div className="sm:col-span-2">

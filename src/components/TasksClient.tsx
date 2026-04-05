@@ -2,7 +2,21 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { Plus, X, CheckCircle2, Clock, AlertCircle, Circle, Pencil, ClipboardCopy, FileEdit, Send, Hourglass, Gavel } from "lucide-react";
+import {
+  Plus,
+  X,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Circle,
+  Pencil,
+  ClipboardCopy,
+  FileEdit,
+  Send,
+  Hourglass,
+  Gavel,
+  Coins,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -107,16 +121,16 @@ export default function TasksClient({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [points, setPoints] = useState("10");
+  const [points, setPoints] = useState("0");
   const [assigneeId, setAssigneeId] = useState("");
-  const [authorSeeksSembons, setAuthorSeeksSembons] = useState(false);
+  const [showSembonsModal, setShowSembonsModal] = useState(false);
+  const [sembonsModalInput, setSembonsModalInput] = useState("0");
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceKind, setRecurrenceKind] = useState("NONE");
   const [weekdays, setWeekdays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [dayOfMonth, setDayOfMonth] = useState("15");
   const [yearMonth, setYearMonth] = useState("1");
   const [yearDay, setYearDay] = useState("1");
-  const [activateNow, setActivateNow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -160,16 +174,15 @@ export default function TasksClient({
     setTitle("");
     setDescription("");
     setDueDate("");
-    setPoints("10");
+    setPoints("0");
     setAssigneeId("");
-    setAuthorSeeksSembons(false);
     setIsRecurring(false);
     setRecurrenceKind("NONE");
     setWeekdays([1, 2, 3, 4, 5]);
     setDayOfMonth("15");
     setYearMonth("1");
     setYearDay("1");
-    setActivateNow(false);
+    setShowSembonsModal(false);
     setError("");
     setShowForm(true);
   }
@@ -181,7 +194,6 @@ export default function TasksClient({
     setDueDate(task.dueDate ? task.dueDate.slice(0, 10) : "");
     setPoints(String(task.points));
     setAssigneeId(task.assignee?.id ?? "");
-    setAuthorSeeksSembons(task.authorSeeksSembons);
     setIsRecurring(task.isRecurring);
     setRecurrenceKind(task.recurrenceKind ?? "NONE");
     const p = task.recurrencePayload as { weekdays?: number[]; dayOfMonth?: number; month?: number; day?: number } | null;
@@ -189,7 +201,7 @@ export default function TasksClient({
     if (p?.dayOfMonth) setDayOfMonth(String(p.dayOfMonth));
     if (p?.month) setYearMonth(String(p.month));
     if (p?.day) setYearDay(String(p.day));
-    setActivateNow(false);
+    setShowSembonsModal(false);
     setError("");
     setShowForm(true);
   }
@@ -242,11 +254,9 @@ export default function TasksClient({
         dueDate: dueDate || undefined,
         points: parseInt(points, 10) || 0,
         assigneeId: assigneeId || undefined,
-        authorSeeksSembons,
         isRecurring,
         recurrenceKind: rk,
         recurrencePayload: buildRecurrencePayload(),
-        ...(editing ? {} : { activateNow: activateNow && !authorSeeksSembons }),
       };
       const res = await fetch(editing ? `/api/tasks/${editing.id}` : "/api/tasks", {
         method: editing ? "PATCH" : "POST",
@@ -400,6 +410,7 @@ export default function TasksClient({
       )}
 
       {showForm && (
+        <>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-md shadow-2xl my-8">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
@@ -435,43 +446,35 @@ export default function TasksClient({
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Срок</label>
-                  <input
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Сембоны (награда)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={points}
-                    onChange={(e) => setPoints(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Срок</label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
-              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
-                <input type="checkbox" checked={authorSeeksSembons} onChange={(e) => setAuthorSeeksSembons(e.target.checked)} className="rounded" />
-                Постановщик хочет заработать сембоны (активация через админа)
-              </label>
-              {!editing && (
-                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={activateNow}
-                    onChange={(e) => setActivateNow(e.target.checked)}
-                    disabled={authorSeeksSembons}
-                    className="rounded"
-                  />
-                  Сразу в работу (если нет сембонов постановщику)
-                </label>
-              )}
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSembonsModalInput(points);
+                    setShowSembonsModal(true);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 px-4 py-2.5 text-sm font-medium text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors"
+                >
+                  <Coins className="w-4 h-4" />
+                  Сембоны
+                </button>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  {(parseInt(points, 10) || 0) > 0 ? (
+                    <>Награда за выполнение: <span className="font-medium text-amber-700 dark:text-amber-400">{points} семб.</span></>
+                  ) : (
+                    <span className="text-slate-500">Без сембонов — при выполнении без приёмки у админа</span>
+                  )}
+                </p>
+              </div>
               <div>
                 <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer mb-2">
                   <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} className="rounded" />
@@ -589,6 +592,53 @@ export default function TasksClient({
             </form>
           </div>
         </div>
+
+        {showSembonsModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="sembons-dialog-title"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4"
+            >
+              <h3 id="sembons-dialog-title" className="text-slate-900 dark:text-white font-semibold text-base">
+                Задача за сембоны
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                Сколько, на твой взгляд, сембонов перевести тебе на счёт за выполнение этой задачи (каждого экземпляра задачи, если она регулярная)?
+              </p>
+              <input
+                type="number"
+                min={0}
+                max={9999}
+                value={sembonsModalInput}
+                onChange={(e) => setSembonsModalInput(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-slate-900 dark:text-white"
+              />
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSembonsModal(false)}
+                  className="flex-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-300 font-medium rounded-lg px-4 py-2.5 text-sm"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const n = Math.max(0, Math.min(9999, parseInt(sembonsModalInput, 10) || 0));
+                    setPoints(String(n));
+                    setShowSembonsModal(false);
+                  }}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg px-4 py-2.5 text-sm"
+                >
+                  Сохранить
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        </>
       )}
     </div>
   );

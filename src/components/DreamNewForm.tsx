@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type UserOpt = { id: string; name: string | null; isServiceUser: boolean };
+type UserOpt = { id: string; name: string | null };
 
 type Row = { supporterId: string; requestedSembons: string };
 
@@ -25,7 +25,7 @@ export default function DreamNewForm() {
       const res = await fetch("/api/users");
       if (res.ok) {
         const list = (await res.json()) as UserOpt[];
-        setUsers(list.filter((u) => !u.isServiceUser));
+        setUsers(list);
       }
     })();
   }, []);

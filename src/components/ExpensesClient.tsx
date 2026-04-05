@@ -24,7 +24,7 @@ type Expense = {
   place: { id: string; name: string } | null;
 };
 
-type UserOpt = { id: string; name: string | null; isServiceUser: boolean };
+type UserOpt = { id: string; name: string | null };
 
 const CATEGORIES = Object.entries(EXPENSE_CATEGORY_LABELS);
 
@@ -91,7 +91,7 @@ export default function ExpensesClient({
         ]);
         if (uRes.ok) {
           const list = (await uRes.json()) as UserOpt[];
-          setFamilyUsers(list.filter((u) => !u.isServiceUser));
+          setFamilyUsers(list);
         }
         if (pRes.ok) setPlaces(await pRes.json());
       } catch {

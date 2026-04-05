@@ -28,7 +28,7 @@ type Dream = {
   supports: Support[];
 };
 
-type UserOpt = { id: string; name: string | null; isServiceUser: boolean };
+type UserOpt = { id: string; name: string | null };
 
 export default function DreamDetailClient({ dreamId }: { dreamId: string }) {
   const { data: session } = useSession();
@@ -72,7 +72,7 @@ export default function DreamDetailClient({ dreamId }: { dreamId: string }) {
       const u = await fetch("/api/users");
       if (u.ok) {
         const list = (await u.json()) as UserOpt[];
-        setUsers(list.filter((x) => !x.isServiceUser));
+        setUsers(list);
       }
       setLoading(false);
     })();

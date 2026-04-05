@@ -38,28 +38,27 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
 
   const body = await req.json();
-  const { title, description, dueDate, assigneeId, points, authorSeeksSembons, isRecurring, recurrenceKind, recurrencePayload, activateNow } =
+  const { title, description, dueDate, assigneeId, points, isRecurring, recurrenceKind, recurrencePayload } =
     body as Record<string, unknown>;
 
   if (!title || typeof title !== "string") return NextResponse.json({ error: "title обязателен" }, { status: 400 });
 
-  const pts = Math.max(0, Math.min(9999, Number(points ?? 10)));
-  const seeks = Boolean(authorSeeksSembons);
+  const pts = Math.max(0, Math.min(9999, Number(points ?? 0)));
   const recurring = Boolean(isRecurring);
   const rk = parseRecurrenceKind(recurrenceKind);
   const payload = recurrencePayload && typeof recurrencePayload === "object" ? recurrencePayload : undefined;
   const due = dueDate ? new Date(String(dueDate)) : undefined;
 
+  if (assigneeId) {
+    const u = await prisma.user.findUnique({ where: { id: String(assigneeId) } });
+    if (!u || u.isServiceUser) {
+      return NextResponse.json({ error: "Нельзя назначить этого исполнителя" }, { status: 400 });
+    }
+  }
+
   let nextDue: Date | undefined;
   if (recurring && rk !== "NONE") {
     nextDue = initialNextDueUtc(rk, payload, due ?? null, new Date());
-  }
-
-  let status: "DRAFT" | "IN_PROGRESS" = "DRAFT";
-  if (activateNow === true && !seeks) {
-    status = "IN_PROGRESS";
-  } else if (activateNow === true && seeks) {
-    return NextResponse.json({ error: "С сембонами для постановщика сначала отправьте задачу на согласование" }, { status: 400 });
   }
 
   const task = await prisma.task.create({
@@ -70,11 +69,11 @@ export async function POST(req: NextRequest) {
       nextDueAt: nextDue ?? due,
       assigneeId: assigneeId ? String(assigneeId) : undefined,
       points: pts,
-      authorSeeksSembons: seeks,
+      authorSeeksSembons: false,
       isRecurring: recurring,
       recurrenceKind: recurring ? rk : "NONE",
       recurrencePayload: recurring && rk !== "NONE" ? (payload ?? {}) : undefined,
-      status,
+      status: "DRAFT",
       authorId: session.user.id,
     },
     include: taskInclude,
