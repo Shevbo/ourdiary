@@ -91,6 +91,7 @@ export default function ExpensesClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showQrScanner, setShowQrScanner] = useState(false);
+  const [receiptQrUploadError, setReceiptQrUploadError] = useState("");
   const [categoryOptions, setCategoryOptions] = useState<{ code: string; label: string }[]>([]);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [receiptImageUrl, setReceiptImageUrl] = useState<string | null>(null);
@@ -276,8 +277,11 @@ export default function ExpensesClient({
   const importFromReceiptPhoto = useCallback(
     async (file: File | null) => {
       if (!file?.size) return;
+      setReceiptQrUploadError("");
       if (file.size > 8 * 1024 * 1024) {
-        setError("Файл больше 8 МБ");
+        const msg = "Файл больше 8 МБ";
+        setError(msg);
+        setReceiptQrUploadError(msg);
         return;
       }
       setError("");
@@ -288,14 +292,18 @@ export default function ExpensesClient({
         const res = await fetch("/api/expenses/from-receipt", { method: "POST", body: fd });
         const d = (await res.json().catch(() => ({}))) as { error?: string };
         if (!res.ok) {
-          setError(d.error ?? "Не удалось импортировать чек по фото");
+          const msg = d.error ?? "Не удалось импортировать чек по фото";
+          setError(msg);
+          setReceiptQrUploadError(msg);
           return;
         }
         setShowQrScanner(false);
         setShowForm(false);
         router.refresh();
       } catch {
-        setError("Ошибка соединения");
+        const msg = "Ошибка соединения";
+        setError(msg);
+        setReceiptQrUploadError(msg);
       } finally {
         setLoading(false);
       }
@@ -611,7 +619,10 @@ export default function ExpensesClient({
                   <>
                     <button
                       type="button"
-                      onClick={() => setShowQrScanner(true)}
+                      onClick={() => {
+                        setReceiptQrUploadError("");
+                        setShowQrScanner(true);
+                      }}
                       className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0"
                       title="Сканировать QR чека"
                     >
@@ -838,7 +849,13 @@ export default function ExpensesClient({
       {showQrScanner && (
         <ReceiptQrScanner
           onDecoded={importFromReceipt}
-          onClose={() => setShowQrScanner(false)}
+          onReceiptPhoto={importFromReceiptPhoto}
+          receiptPhotoBusy={loading}
+          serverUploadError={receiptQrUploadError}
+          onClose={() => {
+            setReceiptQrUploadError("");
+            setShowQrScanner(false);
+          }}
         />
       )}
     </div>
