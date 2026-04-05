@@ -188,7 +188,7 @@ export default function MeClient() {
         <form onSubmit={saveProfile} className="space-y-3 max-w-md">
           <div>
             <label className="text-xs text-slate-500">Имя для входа</label>
-            <p className="text-slate-900 dark:text-white font-mono text-sm">{profile.loginName}</p>
+            <p className="text-slate-900 dark:text-white text-sm">{profile.loginName}</p>
           </div>
           <div>
             <label className="text-xs text-slate-500">Имя</label>
