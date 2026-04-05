@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Shield, Plus, X, User, Trash2, Pencil } from "lucide-react";
+import { Shield, Plus, X, Trash2, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import AvatarImg from "./AvatarImg";
 
 type UserRow = {
   id: string;
@@ -212,14 +213,7 @@ export default function AdminClient({
               <tr key={u.id} className="border-b border-slate-200 dark:border-slate-800 last:border-0">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0">
-                      {u.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={u.avatarUrl} alt={u.name ?? ""} className="w-full h-full object-cover" />
-                      ) : (
-                        <User className="w-4 h-4 text-slate-400" />
-                      )}
-                    </div>
+                    <AvatarImg src={u.avatarUrl} alt={u.name ?? ""} name={u.name ?? u.loginName} size="xs" />
                     <div>
                       <span className="text-slate-900 dark:text-white text-sm font-medium">{u.loginName}</span>
                       {u.id === currentUserId && (

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { DarumaIcon, DREAM_STATUS_LABEL } from "./DarumaStatus";
+import AvatarImg from "./AvatarImg";
 import { LogOut, User, Bell, Sparkles, Star, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -184,14 +185,7 @@ export default function MeClient() {
       <section>
         <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Профиль</h2>
         <div className="flex gap-4 mb-4">
-          <div className="relative h-20 w-20 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0">
-            {profile.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <User className="w-10 h-10 m-5 text-slate-400" />
-            )}
-          </div>
+          <AvatarImg src={profile.avatarUrl} alt="" name={profile.name ?? profile.loginName} size="xl" />
           <div>
             <label className="text-xs text-slate-500 block mb-1">Фото</label>
             <input

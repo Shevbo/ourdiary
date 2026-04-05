@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { BookHeart, Calendar, Trophy, Wallet, Medal, Award } from "lucide-react";
 import { cn, EVENT_TYPE_LABELS, formatMoney } from "@/lib/utils";
+import AvatarImg from "./AvatarImg";
 
 type TvData = {
   upcomingEvents: { id: string; title: string; type: string; date: string; authorName: string | null }[];
@@ -122,16 +123,7 @@ export default function TvClient({ data }: { data: TvData }) {
               {data.leaderboard.map((u, idx) => (
                 <div key={u.id} className="flex items-center gap-3">
                   <div className="flex-shrink-0">{medals[idx]}</div>
-                  <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {u.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={u.avatarUrl} alt={u.name ?? ""} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-slate-300 font-bold text-sm">
-                        {(u.name ?? "?")[0].toUpperCase()}
-                      </span>
-                    )}
-                  </div>
+                  <AvatarImg src={u.avatarUrl} alt={u.name ?? ""} name={u.name} size="sm" />
                   <div className="flex-1 min-w-0">
                     <p className="text-white font-medium text-base">{u.name ?? "—"}</p>
                   </div>

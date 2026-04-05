@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { Star, Trophy, Medal, Award } from "lucide-react";
 import { cn } from "@/lib/utils";
+import AvatarImg from "@/components/AvatarImg";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
@@ -87,16 +88,7 @@ export default async function RatingPage() {
                   <span className="text-slate-500 dark:text-slate-500 text-sm font-bold">#{idx + 1}</span>
                 )}
               </div>
-              <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {user.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={user.avatarUrl} alt={user.name ?? ""} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-slate-600 dark:text-slate-300 text-sm font-bold">
-                    {(user.name ?? "?")[0].toUpperCase()}
-                  </span>
-                )}
-              </div>
+              <AvatarImg src={user.avatarUrl} alt={user.name ?? ""} name={user.name} size="md" />
               <div className="flex-1 min-w-0">
                 <p className="text-slate-900 dark:text-white font-semibold">{user.name ?? "Без имени"}</p>
                 <p className="text-slate-500 dark:text-slate-500 text-xs">{user.history.length} последних действий</p>
