@@ -48,6 +48,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     title,
     description,
     dueDate,
+    seriesEndsAt,
     assigneeId,
     points,
     authorSeeksSembons,
@@ -61,7 +62,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (title !== undefined) data.title = String(title).trim();
   if (description !== undefined) data.description = description === null ? null : String(description);
-  if (dueDate !== undefined) data.dueDate = dueDate ? new Date(String(dueDate)) : null;
+  if (dueDate !== undefined) {
+    const d = dueDate ? new Date(String(dueDate)) : null;
+    data.dueDate = d;
+    if (d && d.getTime() > Date.now() && task.status === "OVERDUE") {
+      data.status = "IN_PROGRESS";
+    }
+  }
+  if (seriesEndsAt !== undefined) {
+    data.seriesEndsAt = seriesEndsAt ? new Date(String(seriesEndsAt)) : null;
+  }
   if (assigneeId !== undefined) {
     if (assigneeId) {
       const u = await prisma.user.findUnique({ where: { id: String(assigneeId) } });
@@ -89,7 +99,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const due = (dueDate !== undefined ? (dueDate ? new Date(String(dueDate)) : null) : task.dueDate) as Date | null;
     if (rec && rk !== "NONE") {
-      data.nextDueAt = initialNextDueUtc(rk, payload, due, new Date());
+      const next = initialNextDueUtc(rk, payload, due, new Date());
+      data.nextDueAt = next;
+      if (next.getTime() > Date.now() && task.status === "OVERDUE") {
+        data.status = "IN_PROGRESS";
+      }
     } else if (!rec) {
       data.nextDueAt = null;
     }
@@ -98,14 +112,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (status !== undefined) {
     const s = String(status).toUpperCase() as TaskStatus;
     if (s === "POSTPONED") {
-      if (!["DRAFT", "IN_PROGRESS", "APPROVAL_PENDING"].includes(task.status)) {
-        return NextResponse.json({ error: "Отложить можно из черновика, согласования или в работе" }, { status: 400 });
+      if (!["DRAFT", "IN_PROGRESS", "APPROVAL_PENDING", "OVERDUE"].includes(task.status)) {
+        return NextResponse.json({ error: "Отложить можно из черновика, согласования, в работе или просрочки" }, { status: 400 });
       }
       data.status = "POSTPONED";
     } else if (s === "CANCELLED") {
       data.status = "CANCELLED";
+    } else if (s === "DRAFT" || s === "IN_PROGRESS" || s === "APPROVAL_PENDING") {
+      data.status = s;
     } else {
-      return NextResponse.json({ error: "Статус меняется через действия на странице задачи" }, { status: 400 });
+      return NextResponse.json({ error: "Этот статус меняется через действия на странице задачи" }, { status: 400 });
     }
   }
 

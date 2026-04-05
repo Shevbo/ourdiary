@@ -30,6 +30,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       title: src.title,
       description: src.description,
       dueDate: src.dueDate,
+      seriesEndsAt: src.seriesEndsAt,
       nextDueAt: nextDue,
       points: src.points,
       authorSeeksSembons: false,

@@ -6,7 +6,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar as CalendarIcon,
+  Plus,
 } from "lucide-react";
+import AddEventModal from "./AddEventModal";
+import EventDetailModal from "./EventDetailModal";
 import {
   addDays,
   addWeeks,
@@ -60,9 +63,13 @@ function EventThumb({ url }: { url: string | null }) {
   );
 }
 
-function EventMiniCard({ ev }: { ev: CalEvent }) {
+function EventMiniCard({ ev, onOpen }: { ev: CalEvent; onOpen?: () => void }) {
   return (
-    <div className="rounded-lg border border-slate-200/80 bg-white/90 p-2 text-left shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full rounded-lg border border-slate-200/80 bg-white/90 p-2 text-left shadow-sm transition-colors hover:border-indigo-300 dark:border-slate-700 dark:bg-slate-900/90 dark:hover:border-indigo-600"
+    >
       <div className="flex gap-2">
         <EventThumb url={ev.imageUrl} />
         <div className="min-w-0 flex-1">
@@ -80,13 +87,17 @@ function EventMiniCard({ ev }: { ev: CalEvent }) {
           )}
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
-function EventDayCard({ ev }: { ev: CalEvent }) {
+function EventDayCard({ ev, onOpen }: { ev: CalEvent; onOpen?: () => void }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm text-left transition-colors hover:border-indigo-300 dark:hover:border-indigo-700"
+    >
       <div className="flex gap-4">
         {ev.imageUrl ? (
           <img
@@ -107,7 +118,7 @@ function EventDayCard({ ev }: { ev: CalEvent }) {
             <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-400">{ev.description}</p>
           )}
           {ev.links.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
               {ev.links.map((l) => (
                 <a
                   key={l.id}
@@ -123,7 +134,7 @@ function EventDayCard({ ev }: { ev: CalEvent }) {
           )}
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -133,15 +144,19 @@ export default function CalendarClient({
   month,
   view,
   anchorDateISO,
+  currentUserId,
 }: {
   events: CalEvent[];
   view: "month" | "week" | "day";
   year: number;
   month: number;
   anchorDateISO: string;
+  currentUserId: string;
 }) {
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const anchor = parseISO(anchorDateISO);
 
   const eventsByDayOfMonth = useMemo(() => {
@@ -197,6 +212,14 @@ export default function CalendarClient({
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Календарь</h1>
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 min-h-11 sm:min-h-0"
+          >
+            <Plus className="h-4 w-4" />
+            Событие
+          </button>
           {(["month", "week", "day"] as const).map((v) => (
             <button
               key={v}
@@ -321,7 +344,7 @@ export default function CalendarClient({
                 ) : (
                   <div className="space-y-3">
                     {selectedEvents.map((ev) => (
-                      <EventMiniCard key={ev.id} ev={ev} />
+                      <EventMiniCard key={ev.id} ev={ev} onOpen={() => setDetailId(ev.id)} />
                     ))}
                   </div>
                 )}
@@ -338,32 +361,31 @@ export default function CalendarClient({
       )}
 
       {view === "week" && (
-        <div className="overflow-x-auto pb-2">
-          <div className="grid min-w-[720px] grid-cols-7 gap-2">
-            {weekDays.map((day) => {
-              const dayEvents = events.filter((ev) => isSameDay(parseISO(ev.date), day));
-              return (
-                <div
-                  key={day.toISOString()}
-                  className="flex min-h-[280px] flex-col rounded-xl border border-slate-200 bg-slate-50/80 p-2 dark:border-slate-800 dark:bg-slate-900/40"
-                >
-                  <div className="mb-2 border-b border-slate-200 pb-2 text-center dark:border-slate-700">
-                    <div className="text-[10px] font-medium uppercase text-slate-500">
-                      {format(day, "EEE", { locale: ru })}
-                    </div>
-                    <div className="text-lg font-bold text-slate-900 dark:text-white">{format(day, "d")}</div>
-                  </div>
-                  <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
-                    {dayEvents.length === 0 ? (
-                      <p className="text-center text-[11px] text-slate-500">—</p>
-                    ) : (
-                      dayEvents.map((ev) => <EventMiniCard key={ev.id} ev={ev} />)
-                    )}
-                  </div>
+        <div className="space-y-3 pb-2">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Строки — дни с понедельника по воскресенье; в строке — события этой даты.
+          </p>
+          {weekDays.map((day) => {
+            const dayEvents = events.filter((ev) => isSameDay(parseISO(ev.date), day));
+            return (
+              <div
+                key={day.toISOString()}
+                className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:flex-row sm:items-start dark:border-slate-800 dark:bg-slate-900/40"
+              >
+                <div className="w-full shrink-0 border-b border-slate-200 pb-2 sm:w-28 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-3 dark:border-slate-700">
+                  <div className="text-[11px] font-medium uppercase text-slate-500">{format(day, "EEEE", { locale: ru })}</div>
+                  <div className="text-xl font-bold text-slate-900 dark:text-white">{format(day, "d.MM")}</div>
                 </div>
-              );
-            })}
-          </div>
+                <div className="flex min-h-[44px] flex-1 flex-wrap content-start gap-2">
+                  {dayEvents.length === 0 ? (
+                    <span className="text-sm text-slate-400">Нет событий</span>
+                  ) : (
+                    dayEvents.map((ev) => <EventMiniCard key={ev.id} ev={ev} onOpen={() => setDetailId(ev.id)} />)
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -372,9 +394,22 @@ export default function CalendarClient({
           {events.length === 0 ? (
             <p className="text-center text-slate-500">Нет событий в этот день</p>
           ) : (
-            events.map((ev) => <EventDayCard key={ev.id} ev={ev} />)
+            events.map((ev) => <EventDayCard key={ev.id} ev={ev} onOpen={() => setDetailId(ev.id)} />)
           )}
         </div>
+      )}
+
+      {showAddModal && (
+        <AddEventModal
+          onClose={() => setShowAddModal(false)}
+          onSaved={() => {
+            setShowAddModal(false);
+            router.refresh();
+          }}
+        />
+      )}
+      {detailId && (
+        <EventDetailModal eventId={detailId} currentUserId={currentUserId} onClose={() => setDetailId(null)} />
       )}
     </div>
   );

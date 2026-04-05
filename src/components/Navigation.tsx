@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BookHeart,
   Calendar,
@@ -15,8 +15,13 @@ import {
   Shield,
   User,
   Sparkles,
+  GripVertical,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const NAV_ORDER_KEY = "ourdiary-nav-order";
 
 const navItems = [
   { href: "/", label: "Лента", icon: BookHeart },
@@ -28,11 +33,60 @@ const navItems = [
   { href: "/tv", label: "TV", icon: Tv },
 ];
 
+const DEFAULT_HREFS = navItems.map((i) => i.href);
+
+function mergeNavOrder(saved: string[] | null): string[] {
+  if (!saved?.length) return [...DEFAULT_HREFS];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const h of saved) {
+    if (DEFAULT_HREFS.includes(h) && !seen.has(h)) {
+      out.push(h);
+      seen.add(h);
+    }
+  }
+  for (const h of DEFAULT_HREFS) {
+    if (!seen.has(h)) out.push(h);
+  }
+  return out;
+}
+
 export default function Navigation() {
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "SUPERADMIN";
   const [cabinetUnread, setCabinetUnread] = useState(0);
+  const [navOrder, setNavOrder] = useState<string[]>(DEFAULT_HREFS);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(NAV_ORDER_KEY);
+      if (!raw) return;
+      const next = mergeNavOrder(JSON.parse(raw) as string[]);
+      queueMicrotask(() => setNavOrder(next));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const orderedNavItems = useMemo(() => {
+    const byHref = new Map(navItems.map((i) => [i.href, i] as const));
+    return navOrder.map((h) => byHref.get(h)).filter(Boolean) as typeof navItems;
+  }, [navOrder]);
+
+  function moveHref(href: string, dir: -1 | 1) {
+    setNavOrder((prev) => {
+      const i = prev.indexOf(href);
+      if (i < 0) return prev;
+      const j = i + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j]!, next[i]!];
+      localStorage.setItem(NAV_ORDER_KEY, JSON.stringify(next));
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -130,22 +184,77 @@ export default function Navigation() {
 
       {/* Mobile bottom nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
-        <div className="flex items-center justify-around px-2 py-2">
-          {navItems.slice(0, 5).map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors",
-                pathname === href ? "text-indigo-600 dark:text-indigo-400" : "text-slate-500 dark:text-slate-500"
-              )}
-            >
-              <Icon className="w-5 h-5" />
-              <span className="text-xs">{label}</span>
-            </Link>
-          ))}
+        <div className="flex items-stretch gap-0.5 px-1 py-1.5">
+          <div className="flex min-w-0 flex-1 items-center overflow-x-auto scrollbar-none gap-0.5 pr-1">
+            {orderedNavItems.map(({ href, label, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  "flex shrink-0 flex-col items-center gap-0.5 rounded-lg px-2.5 py-1.5 transition-colors min-w-[3.5rem]",
+                  pathname === href ? "text-indigo-600 dark:text-indigo-400" : "text-slate-500 dark:text-slate-500"
+                )}
+              >
+                <Icon className="w-5 h-5 shrink-0" />
+                <span className="text-[10px] leading-tight text-center max-w-[4.5rem] truncate">{label}</span>
+              </Link>
+            ))}
+          </div>
+          <button
+            type="button"
+            title="Порядок вкладок"
+            onClick={() => setShowOrderModal(true)}
+            className="flex w-11 shrink-0 flex-col items-center justify-center rounded-lg border border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400"
+          >
+            <GripVertical className="w-5 h-5" />
+            <span className="text-[9px]">Порядок</span>
+          </button>
         </div>
       </nav>
+
+      {showOrderModal && (
+        <div className="md:hidden fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-0">
+          <button type="button" className="absolute inset-0" aria-label="Закрыть" onClick={() => setShowOrderModal(false)} />
+          <div className="relative z-10 w-full max-h-[70vh] overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+            <p className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Порядок вкладок (снизу)</p>
+            <ul className="space-y-2">
+              {orderedNavItems.map(({ href, label }, idx) => (
+                <li
+                  key={href}
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/80"
+                >
+                  <span className="flex-1 text-sm text-slate-800 dark:text-slate-200">{label}</span>
+                  <button
+                    type="button"
+                    disabled={idx === 0}
+                    onClick={() => moveHref(href, -1)}
+                    className="rounded p-1 text-slate-600 disabled:opacity-30 dark:text-slate-400"
+                    aria-label="Выше"
+                  >
+                    <ChevronUp className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={idx === orderedNavItems.length - 1}
+                    onClick={() => moveHref(href, 1)}
+                    className="rounded p-1 text-slate-600 disabled:opacity-30 dark:text-slate-400"
+                    aria-label="Ниже"
+                  >
+                    <ChevronDown className="w-5 h-5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={() => setShowOrderModal(false)}
+              className="mt-4 w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white"
+            >
+              Готово
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -43,6 +43,22 @@ const CATEGORY_COLORS: Record<string, string> = {
   OTHER: "bg-slate-500/20 text-slate-400",
 };
 
+/** Заливка сегментов столбика «по месяцам» */
+const CATEGORY_BAR_FILL: Record<string, string> = {
+  FOOD: "#f97316",
+  TRANSPORT: "#3b82f6",
+  ENTERTAINMENT: "#a855f7",
+  HEALTH: "#ef4444",
+  EDUCATION: "#06b6d4",
+  CLOTHING: "#ec4899",
+  HOME: "#d97706",
+  VACATION: "#10b981",
+  SHOPPING_PLAN: "#14b8a6",
+  OTHER: "#64748b",
+};
+
+const CATEGORY_STACK_ORDER = Object.keys(CATEGORY_BAR_FILL);
+
 export default function ExpensesClient({
   expenses: initialExpenses,
   monthlyTotals,
@@ -50,7 +66,7 @@ export default function ExpensesClient({
   currentUserRole,
 }: {
   expenses: Expense[];
-  monthlyTotals: { label: string; total: number }[];
+  monthlyTotals: { label: string; total: number; byCategory: Partial<Record<string, number>> }[];
   currentUserId: string;
   currentUserRole: string;
 }) {
@@ -310,17 +326,57 @@ export default function ExpensesClient({
               {monthlyTotals.map((m, i) => {
                 const h = maxMonth > 0 ? (m.total / maxMonth) * chartH : 0;
                 const x = barGap + i * (barW + barGap);
-                const y = chartH - h;
+                let yBottom = chartH;
+                const segments: { cat: string; h: number }[] = [];
+                if (m.total > 0 && h > 0) {
+                  for (const cat of CATEGORY_STACK_ORDER) {
+                    const amt = m.byCategory[cat];
+                    if (!amt || amt <= 0) continue;
+                    const segH = (amt / m.total) * h;
+                    segments.push({ cat, h: segH });
+                  }
+                }
                 return (
                   <g key={m.label + i}>
-                    <rect
-                      x={x}
-                      y={y}
-                      width={barW}
-                      height={Math.max(h, 0)}
-                      rx={2}
-                      className="fill-indigo-500 dark:fill-indigo-500 opacity-90"
-                    />
+                    {segments.length === 0 ? (
+                      <rect
+                        x={x}
+                        y={chartH - h}
+                        width={barW}
+                        height={Math.max(h, 0)}
+                        rx={2}
+                        fill="#6366f1"
+                        opacity={0.85}
+                      />
+                    ) : (
+                      segments.map(({ cat, h: segH }) => {
+                        yBottom -= segH;
+                        return (
+                          <rect
+                            key={cat}
+                            x={x}
+                            y={yBottom}
+                            width={barW}
+                            height={Math.max(segH, 0)}
+                            rx={0}
+                            fill={CATEGORY_BAR_FILL[cat] ?? "#64748b"}
+                            opacity={0.92}
+                          />
+                        );
+                      })
+                    )}
+                    {segments.length > 0 && (
+                      <rect
+                        x={x}
+                        y={chartH - h}
+                        width={barW}
+                        height={Math.max(h, 0)}
+                        rx={2}
+                        fill="none"
+                        stroke="rgba(148,163,184,0.35)"
+                        strokeWidth={1}
+                      />
+                    )}
                     <text
                       x={x + barW / 2}
                       y={chartH + 14}

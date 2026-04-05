@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import ExpensesClient from "@/components/ExpensesClient";
 import { subMonths, startOfMonth, format } from "date-fns";
 import { ru } from "date-fns/locale";
+import type { ExpenseCategory } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export default async function ExpensesPage() {
     }),
     prisma.expense.findMany({
       where: { date: { gte: chartFrom } },
-      select: { date: true, amount: true },
+      select: { date: true, amount: true, category: true },
     }),
   ]);
 
@@ -39,18 +40,27 @@ export default async function ExpensesPage() {
   }));
 
   const bucket: Record<string, number> = {};
+  const bucketByCat: Record<string, Partial<Record<ExpenseCategory, number>>> = {};
   for (const row of forChart) {
     const k = format(row.date, "yyyy-MM");
     bucket[k] = (bucket[k] ?? 0) + Number(row.amount);
+    if (!bucketByCat[k]) bucketByCat[k] = {};
+    const cat = row.category;
+    bucketByCat[k]![cat] = (bucketByCat[k]![cat] ?? 0) + Number(row.amount);
   }
 
-  const monthlyTotals: { label: string; total: number }[] = [];
+  const monthlyTotals: {
+    label: string;
+    total: number;
+    byCategory: Partial<Record<ExpenseCategory, number>>;
+  }[] = [];
   for (let i = 11; i >= 0; i--) {
     const d = startOfMonth(subMonths(new Date(), i));
     const k = format(d, "yyyy-MM");
     monthlyTotals.push({
       label: format(d, "LLL", { locale: ru }),
       total: bucket[k] ?? 0,
+      byCategory: bucketByCat[k] ?? {},
     });
   }
 

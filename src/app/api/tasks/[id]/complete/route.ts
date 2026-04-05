@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { advanceRecurringAfterFinalDone, awardTaskPoints, taskInclude } from "@/lib/task-flow";
+import { logTaskCompletion } from "@/lib/task-completion-log";
 import { notifyAdmins } from "@/lib/notify-admins";
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -12,8 +13,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const task = await prisma.task.findUnique({ where: { id } });
   if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (task.status !== "IN_PROGRESS") {
-    return NextResponse.json({ error: "Выполнить можно только задачу «в работе»" }, { status: 400 });
+  if (task.status !== "IN_PROGRESS" && task.status !== "OVERDUE") {
+    return NextResponse.json({ error: "Выполнить можно только задачу «в работе» или «просрочена»" }, { status: 400 });
   }
 
   const role = session.user.role;
@@ -60,6 +61,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   });
 
   await awardTaskPoints(task, completerId);
+  await logTaskCompletion(task.id, completerId, task.points);
   await advanceRecurringAfterFinalDone(task);
 
   const updated = await prisma.task.findUnique({

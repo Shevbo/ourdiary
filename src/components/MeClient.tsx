@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { DarumaIcon, DREAM_STATUS_LABEL } from "./DarumaStatus";
-import { LogOut, User, Bell, Sparkles } from "lucide-react";
+import { LogOut, User, Bell, Sparkles, Star, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Profile = {
@@ -160,6 +160,26 @@ export default function MeClient() {
           <LogOut className="w-4 h-4" /> Выйти
         </button>
       </div>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/80">
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Отчёты</h2>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/rating"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:border-indigo-300 hover:bg-indigo-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
+          >
+            <Star className="h-4 w-4 text-amber-500" />
+            Сембоны
+          </Link>
+          <Link
+            href="/expenses"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:border-indigo-300 hover:bg-indigo-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
+          >
+            <Wallet className="h-4 w-4 text-emerald-500" />
+            Расходы (план / факт)
+          </Link>
+        </div>
+      </section>
 
       <section>
         <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Профиль</h2>

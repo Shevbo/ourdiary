@@ -22,6 +22,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         orderBy: { createdAt: "asc" },
       },
       votes: true,
+      reactions: { select: { emoji: true, userId: true } },
     },
   });
 

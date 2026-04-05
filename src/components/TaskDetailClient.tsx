@@ -26,6 +26,7 @@ type TaskDetail = {
   status: string;
   dueDate: string | null;
   nextDueAt: string | null;
+  seriesEndsAt: string | null;
   points: number;
   authorSeeksSembons: boolean;
   isRecurring: boolean;
@@ -47,6 +48,7 @@ const STATUS_LABEL: Record<string, string> = {
   DONE: "Сделана",
   POSTPONED: "Отложена",
   CANCELLED: "Отменена",
+  OVERDUE: "Просрочена",
 };
 
 const REC_LABEL: Record<string, string> = {
@@ -151,7 +153,7 @@ export default function TaskDetailClient({
   }
 
   const canComplete =
-    task.status === "IN_PROGRESS" &&
+    (task.status === "IN_PROGRESS" || task.status === "OVERDUE") &&
     (isAdmin || task.assigneeId === currentUserId || task.assigneeId == null);
 
   const due = task.nextDueAt ?? task.dueDate;
@@ -178,7 +180,9 @@ export default function TaskDetailClient({
                   ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400"
                   : task.status === "IN_PROGRESS"
                     ? "bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-400"
-                    : "bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-300"
+                    : task.status === "OVERDUE"
+                      ? "bg-red-100 dark:bg-red-500/20 text-red-800 dark:text-red-400"
+                      : "bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-300"
               )}
             >
               {STATUS_LABEL[task.status] ?? task.status}
@@ -232,7 +236,15 @@ export default function TaskDetailClient({
             <div>
               <dt className="text-slate-500 text-xs">{task.isRecurring ? "Ближайший срок" : "Срок"}</dt>
               <dd className={cn(overdue && "text-red-500")}>
-                {format(new Date(due), "d MMMM yyyy", { locale: ru })}
+                {format(new Date(due), "d MMMM yyyy HH:mm", { locale: ru })}
+              </dd>
+            </div>
+          )}
+          {task.isRecurring && task.seriesEndsAt && (
+            <div>
+              <dt className="text-slate-500 text-xs">Окончание серии</dt>
+              <dd className="text-slate-900 dark:text-white">
+                {format(new Date(task.seriesEndsAt), "d MMMM yyyy", { locale: ru })}
               </dd>
             </div>
           )}
@@ -318,7 +330,7 @@ export default function TaskDetailClient({
           )}
 
           {(isAuthor || isAdmin) &&
-            ["DRAFT", "IN_PROGRESS", "APPROVAL_PENDING"].includes(task.status) && (
+            ["DRAFT", "IN_PROGRESS", "APPROVAL_PENDING", "OVERDUE"].includes(task.status) && (
               <button
                 type="button"
                 disabled={loading !== null}

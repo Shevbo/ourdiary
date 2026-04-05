@@ -1,7 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { ThumbsUp, ThumbsDown, MessageCircle, ExternalLink, BookHeart, Calendar, Gift, Sun, Bell, Pencil, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  ThumbsUp,
+  ThumbsDown,
+  MessageCircle,
+  ExternalLink,
+  BookHeart,
+  Calendar,
+  Gift,
+  Sun,
+  Bell,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { formatDate, EVENT_TYPE_LABELS, EVENT_TYPE_COLORS, cn } from "@/lib/utils";
 
 type Vote = { value: "UP" | "DOWN"; userId: string };
@@ -20,6 +32,7 @@ export type EventCardData = {
   links: Link[];
   votes: Vote[];
   _count: { comments: number; votes: number };
+  reactions?: { emoji: string; count: number; me: boolean }[];
 };
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
@@ -30,18 +43,26 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   REMINDER: <Bell className="w-4 h-4" />,
 };
 
+const QUICK_EMOJI = ["👍", "❤️", "😂", "😮", "🎉"];
+
 export default function EventCard({
   event,
   currentUserId,
   currentUserRole,
   onEdit,
   onDeleted,
+  onOpen,
+  onFocusComment,
+  onNewComment,
 }: {
   event: EventCardData;
   currentUserId: string;
   currentUserRole: string;
   onEdit?: () => void;
   onDeleted?: (id: string) => void;
+  onOpen?: () => void;
+  onFocusComment?: () => void;
+  onNewComment?: () => void;
 }) {
   const canManage =
     event.author.id === currentUserId ||
@@ -53,6 +74,13 @@ export default function EventCard({
   const [downCount, setDownCount] = useState(event.votes.filter((v) => v.value === "DOWN").length);
   const [myVoteVal, setMyVoteVal] = useState<"UP" | "DOWN" | null>(myVote?.value ?? null);
   const [voting, setVoting] = useState(false);
+  const [reactions, setReactions] = useState(event.reactions ?? []);
+  const [reacting, setReacting] = useState(false);
+
+  const tapCountRef = useRef(0);
+  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longFiredRef = useRef(false);
 
   async function handleVote(value: "UP" | "DOWN") {
     if (voting) return;
@@ -73,8 +101,13 @@ export default function EventCard({
         else setDownCount((c) => c + 1);
         setMyVoteVal(value);
       } else if (data.action === "updated") {
-        if (value === "UP") { setUpCount((c) => c + 1); setDownCount((c) => c - 1); }
-        else { setDownCount((c) => c + 1); setUpCount((c) => c - 1); }
+        if (value === "UP") {
+          setUpCount((c) => c + 1);
+          setDownCount((c) => c - 1);
+        } else {
+          setDownCount((c) => c + 1);
+          setUpCount((c) => c - 1);
+        }
         setMyVoteVal(value);
       }
     } finally {
@@ -94,119 +127,221 @@ export default function EventCard({
     }
   }
 
+  async function toggleEmoji(emoji: string) {
+    if (reacting) return;
+    setReacting(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}/reactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji }),
+      });
+      if (!res.ok) return;
+      const fresh = await fetch(`/api/events/${event.id}`);
+      if (!fresh.ok) return;
+      const data = (await fresh.json()) as { reactions?: { emoji: string; userId: string }[] };
+      const map = new Map<string, { emoji: string; count: number; me: boolean }>();
+      for (const r of data.reactions ?? []) {
+        const cur = map.get(r.emoji) ?? { emoji: r.emoji, count: 0, me: false };
+        cur.count += 1;
+        if (r.userId === currentUserId) cur.me = true;
+        map.set(r.emoji, cur);
+      }
+      setReactions([...map.values()].sort((a, b) => b.count - a.count));
+    } finally {
+      setReacting(false);
+    }
+  }
+
+  function handleCardPointerDown() {
+    if (!onFocusComment) return;
+    longFiredRef.current = false;
+    longPressRef.current = setTimeout(() => {
+      longFiredRef.current = true;
+      onFocusComment();
+    }, 500);
+  }
+
+  function clearLongPress() {
+    if (longPressRef.current) {
+      clearTimeout(longPressRef.current);
+      longPressRef.current = null;
+    }
+  }
+
+  function handleCardClick(e: React.MouseEvent) {
+    if (longFiredRef.current) {
+      longFiredRef.current = false;
+      return;
+    }
+    if ((e.target as HTMLElement).closest("button, a")) return;
+    if (!onOpen && !onFocusComment) return;
+    if (!onFocusComment && !onNewComment) {
+      onOpen?.();
+      return;
+    }
+
+    tapCountRef.current += 1;
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+    tapTimerRef.current = setTimeout(() => {
+      const n = tapCountRef.current;
+      tapCountRef.current = 0;
+      if (n === 1) onOpen?.();
+      else if (n === 2) onFocusComment?.();
+      else if (n >= 3) onNewComment?.();
+    }, 280);
+  }
+
   return (
-    <div
-      className={cn(
-        "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden hover:border-slate-300 dark:hover:border-slate-700 transition-colors shadow-sm dark:shadow-none",
-        onEdit && canManage && "cursor-pointer"
-      )}
-      onClick={onEdit && canManage ? onEdit : undefined}
-      role={onEdit && canManage ? "button" : undefined}
-    >
-      {event.imageUrl && (
-        <div className="h-48 w-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={event.imageUrl} alt={event.title} className="max-h-full max-w-full w-full h-full object-contain" />
-        </div>
-      )}
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={cn("inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full", EVENT_TYPE_COLORS[event.type])}>
-              {TYPE_ICONS[event.type]}
-              {EVENT_TYPE_LABELS[event.type] ?? event.type}
-            </span>
-            <span className="text-slate-500 dark:text-slate-500 text-xs">{formatDate(event.date)}</span>
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden hover:border-slate-300 dark:hover:border-slate-700 transition-colors shadow-sm dark:shadow-none">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={handleCardClick}
+        onPointerDown={handleCardPointerDown}
+        onPointerUp={clearLongPress}
+        onPointerLeave={clearLongPress}
+        onPointerCancel={clearLongPress}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onOpen?.();
+          }
+        }}
+        className={cn(
+          "text-left w-full outline-none",
+          (onOpen || onFocusComment) && "cursor-pointer"
+        )}
+      >
+        {event.imageUrl && (
+          <div className="h-48 w-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden pointer-events-none">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={event.imageUrl} alt={event.title} className="max-h-full max-w-full w-full h-full object-contain" />
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-slate-500 dark:text-slate-500 text-xs">
-              {event.author.name ?? event.author.id}
-            </span>
-            {canManage && onEdit && (
-              <span className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  onClick={onEdit}
-                  className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-500 hover:bg-indigo-500/10"
-                  title="Редактировать"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-                {onDeleted && (
+        )}
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full",
+                  EVENT_TYPE_COLORS[event.type]
+                )}
+              >
+                {TYPE_ICONS[event.type]}
+                {EVENT_TYPE_LABELS[event.type] ?? event.type}
+              </span>
+              <span className="text-slate-500 dark:text-slate-500 text-xs">{formatDate(event.date)}</span>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-slate-500 dark:text-slate-500 text-xs">{event.author.name ?? event.author.id}</span>
+              {canManage && onEdit && (
+                <span className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
-                    onClick={() => void handleDelete()}
-                    disabled={deleting}
-                    className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10 disabled:opacity-50"
-                    title="Удалить"
+                    onClick={onEdit}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-500 hover:bg-indigo-500/10"
+                    title="Редактировать"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Pencil className="w-3.5 h-3.5" />
                   </button>
-                )}
-              </span>
-            )}
+                  {onDeleted && (
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete()}
+                      disabled={deleting}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10 disabled:opacity-50"
+                      title="Удалить"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </span>
+              )}
+            </div>
           </div>
+
+          <h3 className="text-slate-900 dark:text-white font-semibold text-base mb-1 leading-snug">{event.title}</h3>
+
+          {event.description && (
+            <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed line-clamp-3 mb-3">{event.description}</p>
+          )}
+
+          {event.links.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3" onClick={(e) => e.stopPropagation()}>
+              {event.links.map((link) => (
+                <a
+                  key={link.id}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 px-2 py-1 rounded-lg transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          )}
         </div>
+      </div>
 
-        <h3 className="text-slate-900 dark:text-white font-semibold text-base mb-1 leading-snug">{event.title}</h3>
+      <div className="px-4 pb-3 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
+        {QUICK_EMOJI.map((e) => {
+          const row = reactions.find((r) => r.emoji === e);
+          return (
+            <button
+              key={e}
+              type="button"
+              disabled={reacting}
+              onClick={() => void toggleEmoji(e)}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm border transition-colors",
+                row?.me
+                  ? "border-indigo-500 bg-indigo-500/15 text-indigo-700 dark:text-indigo-300"
+                  : "border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+              )}
+            >
+              <span>{e}</span>
+              {row && row.count > 0 && <span className="text-xs text-slate-500">{row.count}</span>}
+            </button>
+          );
+        })}
+      </div>
 
-        {event.description && (
-          <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed line-clamp-3 mb-3">
-            {event.description}
-          </p>
-        )}
-
-        {event.links.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3" onClick={(e) => e.stopPropagation()}>
-            {event.links.map((link) => (
-              <a
-                key={link.id}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 px-2 py-1 rounded-lg transition-colors"
-              >
-                <ExternalLink className="w-3 h-3" />
-                {link.label}
-              </a>
-            ))}
-          </div>
-        )}
-
-        <div
-          className="flex items-center gap-3 pt-2 border-t border-slate-200 dark:border-slate-800"
-          onClick={(e) => e.stopPropagation()}
+      <div
+        className="flex items-center gap-3 px-4 pb-4 pt-0 border-t border-slate-200 dark:border-slate-800"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={() => handleVote("UP")}
+          disabled={voting}
+          className={cn(
+            "flex items-center gap-1.5 text-sm px-2.5 py-1.5 rounded-lg transition-colors",
+            myVoteVal === "UP"
+              ? "bg-emerald-500/20 text-emerald-400"
+              : "text-slate-500 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10"
+          )}
         >
-          <button
-            onClick={() => handleVote("UP")}
-            disabled={voting}
-            className={cn(
-              "flex items-center gap-1.5 text-sm px-2.5 py-1.5 rounded-lg transition-colors",
-              myVoteVal === "UP"
-                ? "bg-emerald-500/20 text-emerald-400"
-                : "text-slate-500 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10"
-            )}
-          >
-            <ThumbsUp className="w-4 h-4" />
-            <span>{upCount}</span>
-          </button>
-          <button
-            onClick={() => handleVote("DOWN")}
-            disabled={voting}
-            className={cn(
-              "flex items-center gap-1.5 text-sm px-2.5 py-1.5 rounded-lg transition-colors",
-              myVoteVal === "DOWN"
-                ? "bg-red-500/20 text-red-400"
-                : "text-slate-500 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10"
-            )}
-          >
-            <ThumbsDown className="w-4 h-4" />
-            <span>{downCount}</span>
-          </button>
-          <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-500 text-sm ml-auto">
-            <MessageCircle className="w-4 h-4" />
-            <span>{event._count.comments}</span>
-          </div>
+          <ThumbsUp className="w-4 h-4" />
+          <span>{upCount}</span>
+        </button>
+        <button
+          onClick={() => handleVote("DOWN")}
+          disabled={voting}
+          className={cn(
+            "flex items-center gap-1.5 text-sm px-2.5 py-1.5 rounded-lg transition-colors",
+            myVoteVal === "DOWN"
+              ? "bg-red-500/20 text-red-400"
+              : "text-slate-500 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10"
+          )}
+        >
+          <ThumbsDown className="w-4 h-4" />
+          <span>{downCount}</span>
+        </button>
+        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-500 text-sm ml-auto">
+          <MessageCircle className="w-4 h-4" />
+          <span>{event._count.comments}</span>
         </div>
       </div>
     </div>

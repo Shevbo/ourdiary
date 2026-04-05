@@ -73,6 +73,7 @@ export default async function CalendarPage({
       year={year}
       month={month}
       anchorDateISO={anchor.toISOString()}
+      currentUserId={session.user.id}
     />
   );
 }

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { advanceRecurringAfterFinalDone, awardTaskPoints, taskInclude } from "@/lib/task-flow";
+import { logTaskCompletion } from "@/lib/task-completion-log";
 
 function isAdmin(role: string) {
   return role === "ADMIN" || role === "SUPERADMIN";
@@ -73,6 +74,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         data: { status: "DONE" },
       });
       await awardTaskPoints(task, completerId);
+      await logTaskCompletion(task.id, completerId, task.points);
       await advanceRecurringAfterFinalDone(task);
       return respond();
     }

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 /** Статика в `public/` — файл должен быть настоящим PNG (не WebP с расширением .png). */
@@ -35,9 +34,16 @@ type DarumaIconProps = {
 };
 
 /** Кукла Дарума по статусу мечты (п. 1.14.8): белые глаза → один зрачок → оба; отложена/сброшена — тот же образ с фильтром. */
+function DollImg({ className }: { className?: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- избегаем layout/placeholder next/image у круглой маски
+    <img src={DARUMA_SRC} alt="" width={56} height={56} className={cn("h-full w-full object-cover", className)} loading="lazy" decoding="async" />
+  );
+}
+
 export function DarumaIcon({ status, className }: DarumaIconProps) {
   const frame = cn(
-    "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-black ring-1 ring-black/20 dark:ring-white/10",
+    "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-300/80 dark:bg-slate-800 dark:ring-slate-600/80",
     "h-14 w-14",
     className
   );
@@ -46,35 +52,28 @@ export function DarumaIcon({ status, className }: DarumaIconProps) {
     case "DRAFTING":
       return (
         <span className={frame} title="Формируется">
-          <Image src={DARUMA_SRC} alt="" width={56} height={56} className="h-full w-full object-cover" sizes="56px" />
+          <DollImg />
           <Pupils mode="none" />
         </span>
       );
     case "ACTIVE":
       return (
         <span className={frame} title="Активная">
-          <Image src={DARUMA_SRC} alt="" width={56} height={56} className="h-full w-full object-cover" sizes="56px" />
+          <DollImg />
           <Pupils mode="first" />
         </span>
       );
     case "FULFILLED":
       return (
         <span className={frame} title="Сбылась">
-          <Image src={DARUMA_SRC} alt="" width={56} height={56} className="h-full w-full object-cover" sizes="56px" />
+          <DollImg />
           <Pupils mode="both" />
         </span>
       );
     case "POSTPONED":
       return (
         <span className={frame} title="Отложена">
-          <Image
-            src={DARUMA_SRC}
-            alt=""
-            width={56}
-            height={56}
-            className="h-full w-full object-cover saturate-[0.65] opacity-95"
-            sizes="56px"
-          />
+          <DollImg className="saturate-[0.65] opacity-95" />
           <span className="pointer-events-none absolute inset-0 bg-amber-400/15 mix-blend-overlay" aria-hidden />
           <Pupils mode="none" />
         </span>
@@ -82,14 +81,7 @@ export function DarumaIcon({ status, className }: DarumaIconProps) {
     case "DROPPED":
       return (
         <span className={frame} title="Сброшена">
-          <Image
-            src={DARUMA_SRC}
-            alt=""
-            width={56}
-            height={56}
-            className="h-full w-full object-cover grayscale opacity-[0.72]"
-            sizes="56px"
-          />
+          <DollImg className="grayscale opacity-[0.72]" />
           <span className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
             <span className="h-[2.5px] w-[130%] rotate-45 rounded-full bg-white/60 shadow-sm" />
           </span>
@@ -98,8 +90,8 @@ export function DarumaIcon({ status, className }: DarumaIconProps) {
     default:
       return (
         <span className={frame}>
-          <Image src={DARUMA_SRC} alt="" width={56} height={56} className="h-full w-full object-cover opacity-80" sizes="56px" />
-          <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow">?</span>
+          <DollImg className="opacity-80" />
+          <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-slate-700 dark:text-slate-200 drop-shadow">?</span>
         </span>
       );
   }

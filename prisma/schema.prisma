@@ -26,6 +26,7 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   events        Event[]
+  eventReactions EventReaction[]
   comments      Comment[]
   expenses      Expense[]
   expensesAsBeneficiary Expense[] @relation("ExpenseBeneficiary")
@@ -33,6 +34,7 @@ model User {
   tasks         Task[]    @relation("TaskAssignee")
   tasksAuthored Task[]    @relation("TaskAuthor")
   tasksDone     Task[]    @relation("TaskCompleter")
+  taskCompletionLogs TaskCompletionLog[]
   ratingPoints  RatingPoint[]
   pushSubscriptions PushSubscription[]
   dreamsAuthored Dream[]       @relation("DreamAuthor")
@@ -64,10 +66,25 @@ model Event {
   author      User        @relation(fields: [authorId], references: [id])
   comments    Comment[]
   votes       Vote[]
+  reactions   EventReaction[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
   @@map("events")
+}
+
+model EventReaction {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId, emoji])
+  @@index([eventId])
+  @@map("event_reactions")
 }
 
 enum EventType {
@@ -192,6 +209,8 @@ model Task {
   recurrencePayload Json?
   /// Ближайший срок для регулярной задачи (для отображения)
   nextDueAt   DateTime?
+  /// Для регулярных: дата окончания серии (после неё новые экземпляры не создаются)
+  seriesEndsAt DateTime?
   authorId    String
   author      User       @relation("TaskAuthor", fields: [authorId], references: [id])
   assigneeId  String?
@@ -201,8 +220,23 @@ model Task {
   completedAt DateTime?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  completionLogs TaskCompletionLog[]
 
   @@map("tasks")
+}
+
+model TaskCompletionLog {
+  id          String   @id @default(cuid())
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  points      Int
+  completedAt DateTime @default(now())
+
+  @@index([taskId])
+  @@index([userId])
+  @@map("task_completion_logs")
 }
 
 enum TaskStatus {
@@ -213,6 +247,7 @@ enum TaskStatus {
   DONE
   POSTPONED
   CANCELLED
+  OVERDUE
 }
 
 enum TaskRecurrenceKind {

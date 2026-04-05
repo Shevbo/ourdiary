@@ -30,6 +30,7 @@ type Task = {
   status: string;
   dueDate: string | null;
   nextDueAt: string | null;
+  seriesEndsAt: string | null;
   points: number;
   authorSeeksSembons: boolean;
   isRecurring: boolean;
@@ -51,6 +52,7 @@ const STATUS_LABELS: Record<string, string> = {
   DONE: "Сделана",
   POSTPONED: "Отложена",
   CANCELLED: "Отменена",
+  OVERDUE: "Просрочена",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -61,6 +63,7 @@ const STATUS_COLORS: Record<string, string> = {
   DONE: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400",
   POSTPONED: "bg-orange-100 dark:bg-orange-500/20 text-orange-800 dark:text-orange-400",
   CANCELLED: "bg-slate-300 dark:bg-slate-600/30 text-slate-600 dark:text-slate-500",
+  OVERDUE: "bg-red-100 dark:bg-red-500/20 text-red-900 dark:text-red-400",
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
@@ -71,6 +74,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   DONE: <CheckCircle2 className="w-4 h-4" />,
   POSTPONED: <Hourglass className="w-4 h-4" />,
   CANCELLED: <AlertCircle className="w-4 h-4" />,
+  OVERDUE: <AlertCircle className="w-4 h-4" />,
 };
 
 const STATUS_ICON_RING: Record<string, string> = {
@@ -81,6 +85,7 @@ const STATUS_ICON_RING: Record<string, string> = {
   DONE: "text-emerald-600 dark:text-emerald-400",
   POSTPONED: "text-orange-600 dark:text-orange-400",
   CANCELLED: "text-slate-500",
+  OVERDUE: "text-red-600 dark:text-red-400",
 };
 
 const WEEKDAYS = [
@@ -92,6 +97,17 @@ const WEEKDAYS = [
   { v: 6, l: "Сб" },
   { v: 0, l: "Вс" },
 ];
+
+function toDatetimeLocal(iso: string | null | undefined) {
+  if (!iso) return "";
+  return format(new Date(iso), "yyyy-MM-dd'T'HH:mm");
+}
+
+function fromDatetimeLocal(s: string) {
+  if (!s) return undefined;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}
 
 export default function TasksClient({
   tasks: initialTasks,
@@ -120,7 +136,9 @@ export default function TasksClient({
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [dueDate, setDueDate] = useState("");
+  const [dueDatetime, setDueDatetime] = useState("");
+  const [seriesEndsAt, setSeriesEndsAt] = useState("");
+  const [formStatus, setFormStatus] = useState("DRAFT");
   const [points, setPoints] = useState("0");
   const [assigneeId, setAssigneeId] = useState("");
   const [showSembonsModal, setShowSembonsModal] = useState(false);
@@ -142,7 +160,7 @@ export default function TasksClient({
   }, [tasks, filterStatus, filterAssignee]);
 
   function canComplete(task: Task) {
-    if (task.status !== "IN_PROGRESS") return false;
+    if (task.status !== "IN_PROGRESS" && task.status !== "OVERDUE") return false;
     if (isAdmin) return true;
     if (task.assigneeId && task.assigneeId === currentUserId) return true;
     if (!task.assigneeId) return true;
@@ -173,7 +191,9 @@ export default function TasksClient({
     setEditing(null);
     setTitle("");
     setDescription("");
-    setDueDate("");
+    setDueDatetime("");
+    setSeriesEndsAt("");
+    setFormStatus("DRAFT");
     setPoints("0");
     setAssigneeId("");
     setIsRecurring(false);
@@ -191,7 +211,13 @@ export default function TasksClient({
     setEditing(task);
     setTitle(task.title);
     setDescription(task.description ?? "");
-    setDueDate(task.dueDate ? task.dueDate.slice(0, 10) : "");
+    setDueDatetime(toDatetimeLocal(task.dueDate));
+    setSeriesEndsAt(task.seriesEndsAt ? task.seriesEndsAt.slice(0, 10) : "");
+    setFormStatus(
+      ["DRAFT", "IN_PROGRESS", "APPROVAL_PENDING", "POSTPONED", "CANCELLED"].includes(task.status)
+        ? task.status
+        : "DRAFT"
+    );
     setPoints(String(task.points));
     setAssigneeId(task.assignee?.id ?? "");
     setIsRecurring(task.isRecurring);
@@ -248,16 +274,23 @@ export default function TasksClient({
     setLoading(true);
     try {
       const rk = isRecurring ? recurrenceKind : "NONE";
-      const payload = {
+      const payload: Record<string, unknown> = {
         title,
         description: description || undefined,
-        dueDate: dueDate || undefined,
         points: parseInt(points, 10) || 0,
         assigneeId: assigneeId || undefined,
         isRecurring,
         recurrenceKind: rk,
         recurrencePayload: buildRecurrencePayload(),
+        status: formStatus,
       };
+      if (isRecurring && rk !== "NONE") {
+        payload.seriesEndsAt = seriesEndsAt || undefined;
+        payload.dueDate = fromDatetimeLocal(dueDatetime);
+      } else {
+        payload.dueDate = fromDatetimeLocal(dueDatetime);
+        payload.seriesEndsAt = undefined;
+      }
       const res = await fetch(editing ? `/api/tasks/${editing.id}` : "/api/tasks", {
         method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -330,7 +363,11 @@ export default function TasksClient({
           {filtered.map((task) => {
             const displayDue = task.nextDueAt ?? task.dueDate;
             const overdue =
-              displayDue && task.status !== "DONE" && task.status !== "CANCELLED" && new Date(displayDue) < new Date();
+              task.status === "OVERDUE" ||
+              (displayDue &&
+                task.status !== "DONE" &&
+                task.status !== "CANCELLED" &&
+                new Date(displayDue) < new Date());
             return (
               <div
                 key={task.id}
@@ -387,7 +424,7 @@ export default function TasksClient({
                     {displayDue && (
                       <span className={cn(overdue ? "text-red-400" : "")}>
                         {task.isRecurring ? "Ближайший срок: " : "До: "}
-                        {format(new Date(displayDue), "d MMM yyyy", { locale: ru })}
+                        {format(new Date(displayDue), "d MMM yyyy HH:mm", { locale: ru })}
                       </span>
                     )}
                     <span className="text-amber-700 dark:text-amber-400">+{task.points} семб.</span>
@@ -447,13 +484,18 @@ export default function TasksClient({
                 />
               </div>
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Срок</label>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
+                <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Статус</label>
+                <select
+                  value={formStatus}
+                  onChange={(e) => setFormStatus(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+                >
+                  <option value="DRAFT">Черновик</option>
+                  <option value="APPROVAL_PENDING">Согласование</option>
+                  <option value="IN_PROGRESS">В работе</option>
+                  <option value="POSTPONED">Отложена</option>
+                  <option value="CANCELLED">Отменена</option>
+                </select>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <button
@@ -477,11 +519,29 @@ export default function TasksClient({
               </div>
               <div>
                 <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer mb-2">
-                  <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} className="rounded" />
+                  <input
+                    type="checkbox"
+                    checked={isRecurring}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      setIsRecurring(on);
+                      if (on && recurrenceKind === "NONE") setRecurrenceKind("DAILY");
+                    }}
+                    className="rounded"
+                  />
                   Регулярная задача (на экране — только ближайший срок)
                 </label>
                 {isRecurring && (
                   <div className="space-y-2 pl-1 border-l-2 border-indigo-200 dark:border-indigo-900/50">
+                    <div>
+                      <label className="block text-slate-600 dark:text-slate-400 text-xs mb-1">Ближайший срок (дата и время)</label>
+                      <input
+                        type="datetime-local"
+                        value={dueDatetime}
+                        onChange={(e) => setDueDatetime(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
                     <select
                       value={recurrenceKind}
                       onChange={(e) => setRecurrenceKind(e.target.value)}
@@ -564,6 +624,30 @@ export default function TasksClient({
                   ))}
                 </select>
               </div>
+              {isRecurring && recurrenceKind !== "NONE" ? (
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">
+                    Дата окончания серии задач
+                  </label>
+                  <input
+                    type="date"
+                    value={seriesEndsAt}
+                    onChange={(e) => setSeriesEndsAt(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Опционально — после этой даты новые экземпляры не планируются.</p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Срок (дата и время)</label>
+                  <input
+                    type="datetime-local"
+                    value={dueDatetime}
+                    onChange={(e) => setDueDatetime(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              )}
               {error && (
                 <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-600 dark:text-red-400 text-sm">{error}</div>
               )}
