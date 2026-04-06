@@ -14,6 +14,7 @@ import {
   fallbackReceiptLinesFromFnsParams,
   type ReceiptImportMeta,
 } from "@/lib/receipt-proverkacheka";
+import { classifyReceiptExpenseLines, resolvePlaceNameForExpense } from "@/lib/receipt-expense-ai";
 
 /** До предобработки на сервере (см. preprocessReceiptImageForQrScan); nginx — client_max_body_size ≥ 32m. */
 const MAX_RECEIPT_IMAGE_BYTES = 32 * 1024 * 1024;
@@ -146,9 +147,20 @@ async function persistExpenseLines(
   const totalAmount = roundMoney(lines.reduce((s, l) => s + l.sum, 0));
   const title = `Чек · ${lines.length} поз.`.slice(0, 200);
 
+  const categoryDefinitions = await prisma.expenseCategoryDefinition.findMany({
+    where: { isActive: true },
+    select: { code: true, label: true },
+    orderBy: { sortOrder: "asc" },
+  });
+  const { parentCategory, lineCategories } = await classifyReceiptExpenseLines({
+    lines,
+    importMeta,
+    categoryDefinitions,
+  });
+
   const created = await prisma.$transaction(async (tx) => {
     let placeId: string | undefined;
-    const placeName = importMeta?.placeName?.trim();
+    const placeName = resolvePlaceNameForExpense(importMeta);
     if (placeName) {
       const name = placeName.slice(0, 200);
       const existing = await tx.expensePlace.findFirst({ where: { name } });
@@ -166,7 +178,7 @@ async function persistExpenseLines(
       data: {
         title,
         amount: totalAmount,
-        category: "OTHER",
+        category: parentCategory,
         date: expenseDate,
         note: firstNote,
         currency: "RUB",
@@ -179,12 +191,13 @@ async function persistExpenseLines(
     const receiptLines: { id: string; title: string; amount: unknown; category: string; sortOrder: number }[] = [];
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      const lineCat = lineCategories[i] ?? "OTHER";
       const row = await tx.expenseReceiptLine.create({
         data: {
           expenseId: parent.id,
           title: line.name.slice(0, 200),
           amount: roundMoney(line.sum),
-          category: "OTHER",
+          category: lineCat,
           sortOrder: i,
         },
       });
