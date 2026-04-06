@@ -1,22 +1,13 @@
-﻿# Важно: это скрипт PowerShell (.ps1). Файл bash (.sh) нельзя переименовывать в .ps1 — синтаксис другой.
-# Скопируйте из репозитория именно upload-doc-to-shectory-work.ps1 или запускайте .sh в Git Bash/WSL.
+﻿#requires -Version 5.1
+# Skript PowerShell. Ne pereimenovyvajte .sh v .ps1. Sohranite kak UTF-8 s BOM.
 
-#requires -Version 5.1
 <#
 .SYNOPSIS
-  Отправка файла на shectory-work в <проект>/docs/ (аналог upload-doc-to-shectory-work.sh).
-
+  Otpravka fajla na shectory-work v proekt/docs/
 .DESCRIPTION
-  Нужны ssh и scp в PATH (Компоненты Windows: OpenSSH Client).
-  Интерактивно: путь к файлу и номер проекта из списка ~/workspaces на удалённой машине.
-
+  Nuzhny ssh i scp (Windows: OpenSSH Client).
 .EXAMPLE
-  .\upload-doc-to-shectory-work.ps1
-  .\upload-doc-to-shectory-work.ps1 -FilePath 'C:\dev\TabscannerAPI.docx' -ProjectNumber 2
-  .\upload-doc-to-shectory-work.ps1 -FilePath 'C:\x\y.pdf' -ProjectNumber 1 -Yes
-
-  Переменные окружения: REMOTE_HOST, REMOTE_WORKSPACES, SHECTORY_DOCS_PROJECTS_FILE
-  Кодировка скрипта: UTF-8 (для Windows PowerShell 5.1 при кириллице удобно UTF-8 с BOM).
+  .\upload-doc-to-shectory-work.ps1 -FilePath C:\dev\doc.docx -ProjectNumber 2 -Yes
 #>
 [CmdletBinding()]
 param(
@@ -33,10 +24,10 @@ $ErrorActionPreference = 'Stop'
 
 function Test-OpenSshAvailable {
   if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) {
-    throw "Не найден ssh. Установите «OpenSSH Клиент» (Параметры Windows → Приложения → Дополнительные компоненты)."
+    throw "Ne najden ssh. Ustanovite OpenSSH Client: Parametry Windows - Prilozhenija - Dopolnitelnye komponenty."
   }
   if (-not (Get-Command scp -ErrorAction SilentlyContinue)) {
-    throw "Не найден scp (часть OpenSSH Client)."
+    throw "Ne najden scp (OpenSSH Client)."
   }
 }
 
@@ -47,7 +38,7 @@ function Resolve-LocalFile {
     $p = $env:USERPROFILE + $p.Substring(1)
   }
   if (-not (Test-Path -LiteralPath $p -PathType Leaf)) {
-    throw "Нет такого файла: $p"
+    throw "Net takogo fajla: $p"
   }
   return (Resolve-Path -LiteralPath $p).Path
 }
@@ -69,7 +60,6 @@ function Get-ProjectsFromRemote {
     [string] $RemoteHostName,
     [string] $WorkspacesSegment
   )
-  # Одна строка для удалённого bash: каталог $HOME/<workspaces>
   $remoteCmd = 'test -d "$HOME/' + $WorkspacesSegment + '" && ls -1 "$HOME/' + $WorkspacesSegment + '"'
   try {
     $out = & ssh -q -o ConnectTimeout=12 -o BatchMode=no $RemoteHostName $remoteCmd 2>$null
@@ -94,7 +84,7 @@ function Show-ProjectMenu {
     [string] $WorkspacesSegment
   )
   Write-Host ""
-  Write-Host "Куда положить (папка docs внутри проекта на ${RemoteHostName}):"
+  Write-Host "Kuda polozhit (papka docs v proekte na ${RemoteHostName}):"
   for ($i = 0; $i -lt $Projects.Count; $i++) {
     $name = $Projects[$i]
     Write-Host ("  {0}) {1}  ->  ~/{2}/{1}/docs/" -f ($i + 1), $name, $WorkspacesSegment)
@@ -114,72 +104,68 @@ else {
   Join-Path $ScriptDir 'shectory-work-docs-projects.list'
 }
 
-# --- локальный файл ---
 if (-not $FilePath) {
-  $FilePath = Read-Host 'Полный путь к файлу для отправки'
+  $FilePath = Read-Host 'Polnyj put k fajlu'
 }
 if ([string]::IsNullOrWhiteSpace($FilePath)) {
-  throw 'Путь к файлу пустой.'
+  throw 'Put pustoj.'
 }
 $LocalPath = Resolve-LocalFile -Path $FilePath
 $BaseName = Split-Path -Leaf $LocalPath
 
-# --- список проектов ---
 $projects = @(Get-ProjectsFromRemote -RemoteHostName $RemoteHost -WorkspacesSegment $RemoteWorkspaces)
 if ($projects.Count -gt 0) {
-  Write-Host "(Список каталогов с ${RemoteHost}, ~/${RemoteWorkspaces}/)" -ForegroundColor DarkGray
+  Write-Host "(Spisok s ${RemoteHost}, ~/${RemoteWorkspaces}/)" -ForegroundColor DarkGray
 }
 else {
-  Write-Host "Не удалось получить список по SSH; пробую файл $ProjectsFile" -ForegroundColor Yellow
+  Write-Host "Ne udalos po SSH; probuju fajl $ProjectsFile" -ForegroundColor Yellow
   $projects = @(Get-ProjectsFromFile -ListPath $ProjectsFile)
   if ($projects.Count -eq 0) {
-    Write-Host 'Используется запасной вариант: только ourdiary.' -ForegroundColor Yellow
+    Write-Host 'Zapas: tolko ourdiary.' -ForegroundColor Yellow
     $projects = @('ourdiary')
   }
 }
 
-# --- выбор проекта ---
 if ($ProjectNumber -lt 1) {
   Show-ProjectMenu -Projects $projects -RemoteHostName $RemoteHost -WorkspacesSegment $RemoteWorkspaces
-  $in = Read-Host "Номер проекта [1-$($projects.Count)]"
+  $in = Read-Host "Nomer proekta [1-$($projects.Count)]"
   $parsedN = 0
   if (-not [int]::TryParse($in.Trim(), [ref]$parsedN)) {
-    throw "Введите число от 1 до $($projects.Count)."
+    throw "Vvedite chislo ot 1 do $($projects.Count)."
   }
   $ProjectNumber = $parsedN
 }
 
 if ($ProjectNumber -lt 1 -or $ProjectNumber -gt $projects.Count) {
-  throw "Номер должен быть от 1 до $($projects.Count)."
+  throw "Nomer ot 1 do $($projects.Count)."
 }
 
 $proj = $projects[$ProjectNumber - 1]
 $remoteTarget = "${RemoteHost}:~/${RemoteWorkspaces}/${proj}/docs/${BaseName}"
 
 Write-Host ""
-Write-Host "Локально:   $LocalPath"
-Write-Host "Удалённо:   $remoteTarget"
+Write-Host "Lokalno:   $LocalPath"
+Write-Host "Udalenno:  $remoteTarget"
 Write-Host ""
 
 if (-not $Yes) {
-  $confirm = Read-Host 'Отправить? [y/N]'
+  $confirm = Read-Host 'Otpravit? [y/N]'
   if ($confirm -notmatch '^(y|yes)$') {
-    Write-Host 'Отменено.'
+    Write-Host 'Otmeneno.'
     exit 0
   }
 }
 
-# Команда для удалённого bash; $HOME раскрывается на сервере (в PowerShell не подставляем)
 $mkdirCmd = 'mkdir -p "$HOME/' + $RemoteWorkspaces + '/' + $proj + '/docs"'
 
 & ssh -q -o ConnectTimeout=12 $RemoteHost $mkdirCmd
 if ($LASTEXITCODE -ne 0) {
-  throw "ssh mkdir завершился с кодом $LASTEXITCODE"
+  throw "ssh mkdir kod $LASTEXITCODE"
 }
 
 & scp $LocalPath $remoteTarget
 if ($LASTEXITCODE -ne 0) {
-  throw "scp завершился с кодом $LASTEXITCODE"
+  throw "scp kod $LASTEXITCODE"
 }
 
-Write-Host 'Готово.'
+Write-Host 'Gotovo.'
