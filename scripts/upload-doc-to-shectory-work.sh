@@ -14,6 +14,7 @@
 #   REMOTE_WORKSPACES        — подкаталог от $HOME на удалёнке (по умолчанию: workspaces → ~/workspaces)
 #   SHECTORY_DOCS_PROJECTS_FILE — если задан и remote ls не сработал — имена проектов по строкам (пустые/# — пропуск)
 #
+# На Windows (PowerShell): scripts/upload-doc-to-shectory-work.ps1 — тот же сценарий; не переименовывать .sh в .ps1.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
