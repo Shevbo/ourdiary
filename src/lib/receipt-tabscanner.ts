@@ -176,13 +176,39 @@ export function tabscannerExpenseDate(inner: Record<string, unknown>): Date | nu
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function firstLine(text: string | undefined): string | undefined {
+  if (!text) return undefined;
+  const line = text.split(/\n/)[0]?.trim();
+  return line || undefined;
+}
+
+/**
+ * Как у импорта по QR (ProverkaCheka): placeName — торговая точка, sellerName — для «Продавец:» в заметке
+ * и для resolvePlaceNameForExpense / parseReceiptMetaFromExpenseNote (строка после «Продавец:»).
+ */
 export function tabscannerImportMeta(inner: Record<string, unknown>): ReceiptImportMeta {
   const trim = (v: unknown) => (typeof v === "string" ? v.trim() : undefined);
   const establishment = trim(inner.establishment);
+  const merchant = trim((inner as { merchant?: unknown }).merchant);
+  const address = trim(inner.address);
+  const phone = trim(inner.phoneNumber);
+
+  const retail = establishment || merchant;
+  const addressHead = firstLine(address);
+  /** Название продавца/точки для сокращения (аналог json.user у ФНС). */
+  const seller = retail || addressHead || establishment || merchant;
+  /** Торговая точка (аналог retailPlace), если отличается — иначе то же имя. */
+  const place = retail || addressHead;
+
+  let retailPlaceAddress = address;
+  if (phone) {
+    retailPlaceAddress = address ? `${address}\nТел.: ${phone}` : `Тел.: ${phone}`;
+  }
+
   return {
-    placeName: establishment,
-    sellerName: establishment,
-    retailPlaceAddress: trim(inner.address),
+    placeName: place,
+    sellerName: seller,
+    retailPlaceAddress,
     operator: undefined,
     userInn: undefined,
   };

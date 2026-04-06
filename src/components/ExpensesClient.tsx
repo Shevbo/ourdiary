@@ -2,7 +2,18 @@
 
 import dynamic from "next/dynamic";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { Plus, X, Wallet, QrCode, Pencil, Trash2, ImagePlus, Camera, ScanLine } from "lucide-react";
+import {
+  Plus,
+  X,
+  Wallet,
+  QrCode,
+  Pencil,
+  Trash2,
+  ImagePlus,
+  Camera,
+  Loader2,
+  Images,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -122,7 +133,9 @@ export default function ExpensesClient({
   const [error, setError] = useState("");
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [tabscannerBusy, setTabscannerBusy] = useState(false);
-  const tabscannerFileInputRef = useRef<HTMLInputElement>(null);
+  const [ocrProgressMessage, setOcrProgressMessage] = useState<string | null>(null);
+  const tabscannerCameraInputRef = useRef<HTMLInputElement>(null);
+  const tabscannerGalleryInputRef = useRef<HTMLInputElement>(null);
   const [receiptQrUploadError, setReceiptQrUploadError] = useState("");
   const [categoryOptions, setCategoryOptions] = useState<{ code: string; label: string }[]>([]);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -255,6 +268,8 @@ export default function ExpensesClient({
     setReceiptImageUrl(null);
     setFormReceiptLines([]);
     setError("");
+    setOcrProgressMessage(null);
+    setTabscannerBusy(false);
     setShowForm(true);
   }
 
@@ -388,13 +403,15 @@ export default function ExpensesClient({
     async (file: File | null) => {
       if (!file?.size) return;
       setReceiptQrUploadError("");
+      setError("");
       if (file.size > 32 * 1024 * 1024) {
         const msg = "Файл больше 32 МБ";
         setError(msg);
         setReceiptQrUploadError(msg);
         return;
       }
-      setError("");
+      setTabscannerBusy(true);
+      setOcrProgressMessage("Сжимаем фото…");
       try {
         const compressed = await compressImageFileForReceiptUpload(file);
         if (compressed.size > 32 * 1024 * 1024) {
@@ -403,9 +420,10 @@ export default function ExpensesClient({
           setReceiptQrUploadError(msg);
           return;
         }
-        setTabscannerBusy(true);
+        setOcrProgressMessage("Отправляем в OCR (Tabscanner)…");
         const fd = new FormData();
         fd.append("file", compressed);
+        setOcrProgressMessage("Распознаём чек… Обычно 10–60 секунд, не закрывайте окно.");
         const res = await fetch("/api/expenses/from-receipt-ocr", { method: "POST", body: fd });
         const raw = await res.text();
         if (!res.ok) {
@@ -414,6 +432,7 @@ export default function ExpensesClient({
           setReceiptQrUploadError(msg);
           return;
         }
+        setOcrProgressMessage("Готово, обновляем список…");
         setShowForm(false);
         router.refresh();
       } catch {
@@ -422,6 +441,7 @@ export default function ExpensesClient({
         setReceiptQrUploadError(msg);
       } finally {
         setTabscannerBusy(false);
+        setOcrProgressMessage(null);
       }
     },
     [router]
@@ -1148,10 +1168,22 @@ export default function ExpensesClient({
                 {!editingId && (
                   <>
                     <input
-                      ref={tabscannerFileInputRef}
+                      ref={tabscannerCameraInputRef}
                       type="file"
                       accept="image/*"
                       capture="environment"
+                      className="hidden"
+                      disabled={tabscannerBusy || loading}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        e.target.value = "";
+                        void importFromReceiptOcr(f);
+                      }}
+                    />
+                    <input
+                      ref={tabscannerGalleryInputRef}
+                      type="file"
+                      accept="image/*"
                       className="hidden"
                       disabled={tabscannerBusy || loading}
                       onChange={(e) => {
@@ -1164,17 +1196,35 @@ export default function ExpensesClient({
                       type="button"
                       onClick={() => {
                         setReceiptQrUploadError("");
-                        tabscannerFileInputRef.current?.click();
+                        tabscannerCameraInputRef.current?.click();
                       }}
                       disabled={tabscannerBusy || loading}
                       className={cn(
-                        "flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0",
+                        "flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0",
                         (tabscannerBusy || loading) && "opacity-60 cursor-not-allowed"
                       )}
-                      title="OCR чека без QR (Tabscanner): снимите чек целиком"
+                      title="Снять чек камерой (OCR Tabscanner, без QR)"
                     >
-                      <ScanLine className="h-4 w-4 shrink-0" />
-                      <span className="hidden sm:inline">{tabscannerBusy ? "Скан…" : "Скан чека"}</span>
+                      <Camera className="h-4 w-4 shrink-0" />
+                      <span className="hidden sm:inline max-w-[5.5rem] leading-tight text-left">
+                        {tabscannerBusy ? "Подождите…" : "Скан чека"}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReceiptQrUploadError("");
+                        tabscannerGalleryInputRef.current?.click();
+                      }}
+                      disabled={tabscannerBusy || loading}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0",
+                        (tabscannerBusy || loading) && "opacity-60 cursor-not-allowed"
+                      )}
+                      title="Загрузить фото чека из медиатеки (галерея)"
+                    >
+                      <Images className="h-4 w-4 shrink-0" />
+                      <span className="hidden sm:inline max-w-[5rem] leading-tight text-left">Галерея</span>
                     </button>
                     <button
                       type="button"
@@ -1198,6 +1248,8 @@ export default function ExpensesClient({
                     setShowForm(false);
                     setEditingId(null);
                     setFormReceiptLines([]);
+                    setOcrProgressMessage(null);
+                    setTabscannerBusy(false);
                     closeTrainWizard();
                   }}
                   className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white min-h-11 min-w-11 flex items-center justify-center sm:min-h-0 sm:min-w-0"
@@ -1206,6 +1258,16 @@ export default function ExpensesClient({
                 </button>
               </div>
             </div>
+            {ocrProgressMessage && (
+              <div
+                className="flex items-center gap-2 px-6 py-2.5 border-b border-amber-200/90 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/45 text-sm text-amber-950 dark:text-amber-100"
+                role="status"
+                aria-live="polite"
+              >
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-amber-700 dark:text-amber-300" aria-hidden />
+                <span>{ocrProgressMessage}</span>
+              </div>
+            )}
             <form onSubmit={(ev) => void handleSubmit(ev)} className="p-6 space-y-4">
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 text-sm font-medium mb-1.5">Название *</label>
