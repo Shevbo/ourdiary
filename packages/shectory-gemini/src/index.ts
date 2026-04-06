@@ -1,7 +1,8 @@
 /**
- * Вызов Gemini (generateContent) с поддержкой HTTP-прокси, как в komissionka:
- * AGENT_LLM_API_KEY, AGENT_PROXY (или AGENT_HTTPS_PROXY / AGENT_HTTP_PROXY),
- * опционально AGENT_LLM_BASE_URL, AGENT_LLM_MODEL, AGENT_PROXY_CONNECT_TIMEOUT_MS.
+ * Общий клиент Gemini API (`generateContent`) для экосистемы Shectory:
+ * запросы к Google AI идут через HTTP(S)-прокси (undici ProxyAgent), если задан `AGENT_PROXY`.
+ *
+ * Переменные окружения — единые для всех прикладных проектов портала (см. docs/wiki/llm-gemini-proxy.md).
  */
 
 import { ProxyAgent, fetch as undiciFetch } from "undici";
@@ -15,6 +16,13 @@ export type AgentGeminiEnv = {
   proxyConnectTimeoutMs: number;
 };
 
+export type GeminiGenerateTextOptions = {
+  /** Переопределить модель на один запрос (иначе из AGENT_LLM_MODEL). */
+  model?: string;
+  maxOutputTokens?: number;
+  temperature?: number;
+};
+
 function envInt(name: string, fallback: number): number {
   const v = process.env[name];
   if (v === undefined || v === "") return fallback;
@@ -22,6 +30,9 @@ function envInt(name: string, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/**
+ * Читает конфигурацию из `process.env` (типичный префикс `AGENT_` для LLM в Shectory).
+ */
 export function getAgentGeminiEnv(): AgentGeminiEnv {
   const apiKey = process.env.AGENT_LLM_API_KEY?.trim();
   const proxyUrl =
@@ -50,19 +61,28 @@ export function isAgentGeminiConfigured(): boolean {
 }
 
 /**
- * Один запрос generateContent: системная инструкция + пользовательский текст.
+ * Один запрос `generateContent`: системная инструкция + пользовательский текст.
  */
-export async function geminiGenerateText(systemInstruction: string, userText: string): Promise<string> {
-  const { apiKey, proxyUrl, baseUrl, model, requestTimeoutMs, proxyConnectTimeoutMs } = getAgentGeminiEnv();
+export async function geminiGenerateText(
+  systemInstruction: string,
+  userText: string,
+  options?: GeminiGenerateTextOptions
+): Promise<string> {
+  const env = getAgentGeminiEnv();
+  const { apiKey, proxyUrl, baseUrl, requestTimeoutMs, proxyConnectTimeoutMs } = env;
   if (!apiKey) throw new Error("AGENT_LLM_API_KEY is not set");
+
+  const model = (options?.model ?? env.model).replace(/^models\//, "");
+  const maxOutputTokens = options?.maxOutputTokens ?? 2048;
+  const temperature = options?.temperature ?? 0.2;
 
   const url = `${baseUrl}/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const body: Record<string, unknown> = {
     systemInstruction: { parts: [{ text: systemInstruction }] },
     contents: [{ role: "user", parts: [{ text: userText }] }],
     generationConfig: {
-      maxOutputTokens: 2048,
-      temperature: 0.2,
+      maxOutputTokens,
+      temperature,
     },
   };
 
@@ -77,7 +97,7 @@ export async function geminiGenerateText(systemInstruction: string, userText: st
       method: "POST",
       headers,
       body: JSON.stringify(body),
-      signal: controller.signal as any,
+      signal: controller.signal as AbortSignal,
     };
     if (proxyUrl?.trim()) {
       fetchOptions.dispatcher = new ProxyAgent({
@@ -85,7 +105,7 @@ export async function geminiGenerateText(systemInstruction: string, userText: st
         proxyTls: { timeout: proxyConnectTimeoutMs },
       }) as import("undici").Dispatcher;
     }
-    const res = await undiciFetch(url, fetchOptions as any);
+    const res = await undiciFetch(url, fetchOptions as Parameters<typeof undiciFetch>[1]);
     clearTimeout(timeout);
     const text = await res.text();
     if (!res.ok) throw new Error(`Gemini API error ${res.status}: ${text.slice(0, 500)}`);

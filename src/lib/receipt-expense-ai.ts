@@ -1,4 +1,4 @@
-import { geminiGenerateText, isAgentGeminiConfigured } from "@/lib/agent-gemini";
+import { geminiGenerateText, isAgentGeminiConfigured } from "@shectory/gemini-proxy";
 import { guessExpenseCategoryFromProductName } from "@/lib/receipt-category";
 import type { ReceiptImportMeta } from "@/lib/receipt-proverkacheka";
 
