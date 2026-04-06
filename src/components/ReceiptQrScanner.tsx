@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useId } from "react";
+import { useEffect, useRef, useState, useId, useCallback } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { X, Camera, ImageIcon, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -63,6 +63,8 @@ export default function ReceiptQrScanner({
 
   const captureInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const captureInputId = useId().replace(/:/g, "");
+  const galleryInputId = useId().replace(/:/g, "");
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -72,34 +74,57 @@ export default function ReceiptQrScanner({
 
   const polyfillRootId = useId().replace(/:/g, "");
 
-  async function handlePickedFile(file: File | null) {
-    if (!file?.size) return;
-    setFileError("");
-    setLastFile(null);
-    setBusy(true);
-    try {
-      const q = await decodeQrFromImageFile(file);
-      if (q) {
-        await Promise.resolve(onDecodedRef.current(q));
+  const clearFileInputs = useCallback(() => {
+    if (captureInputRef.current) captureInputRef.current.value = "";
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
+  }, []);
+
+  /** iOS Safari: программный input.click() часто не даёт change после затвора; label htmlFor — надёжнее. */
+  const handlePickedFile = useCallback(
+    async (file: File | null) => {
+      if (!file) {
+        setFileError("Фото не получено. Попробуйте ещё раз или «Выбрать из медиатеки».");
         return;
       }
-      setLastFile(file);
-      setFileError(
-        "QR на снимке не распознан. Снимите крупнее или отправьте фото на сервер (если задан токен ProverkaCheka)."
-      );
-    } catch (e) {
-      setLastFile(file);
-      setFileError(e instanceof Error ? e.message : "Не удалось обработать изображение");
-    } finally {
-      setBusy(false);
-      if (captureInputRef.current) captureInputRef.current.value = "";
-      if (galleryInputRef.current) galleryInputRef.current.value = "";
-    }
+      if (!file.size) {
+        setFileError("Пустой файл. Повторите снимок или выберите фото из медиатеки.");
+        clearFileInputs();
+        return;
+      }
+      setFileError("");
+      setLastFile(null);
+      setBusy(true);
+      try {
+        const q = await decodeQrFromImageFile(file);
+        if (q) {
+          await Promise.resolve(onDecodedRef.current(q));
+          return;
+        }
+        setLastFile(file);
+        setFileError(
+          "QR на снимке не распознан. Снимите крупнее или отправьте фото на сервер (если задан токен ProverkaCheka)."
+        );
+      } catch (e) {
+        setLastFile(file);
+        setFileError(e instanceof Error ? e.message : "Не удалось обработать изображение");
+      } finally {
+        setBusy(false);
+        clearFileInputs();
+      }
+    },
+    [clearFileInputs]
+  );
+
+  function onFileInputEvent(ev: React.ChangeEvent<HTMLInputElement>) {
+    const f = ev.target.files?.[0] ?? null;
+    void handlePickedFile(f);
   }
 
   /** Лайв-камера: только по вкладке «Непрерывно» — на iPhone не используем по умолчанию. */
   useEffect(() => {
     if (tab !== "live") return;
+
+    const videoForCleanup = videoRef.current;
 
     let cancelled = false;
     const detector = getNativeBarcodeDetector();
@@ -206,7 +231,7 @@ export default function ReceiptQrScanner({
       cancelAnimationFrame(rafRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
-      if (videoRef.current) videoRef.current.srcObject = null;
+      if (videoForCleanup) videoForCleanup.srcObject = null;
       const h = html5Ref.current;
       html5Ref.current = null;
       if (h) {
@@ -284,40 +309,44 @@ export default function ReceiptQrScanner({
             Откройте <strong className="text-white">штатную камеру</strong> с кнопкой затвора — так быстрее всего на iPhone.
           </p>
           <input
+            id={`capture-${captureInputId}`}
             ref={captureInputRef}
             type="file"
             accept="image/*"
             capture="environment"
-            className="hidden"
+            className="sr-only"
             disabled={busy}
-            onChange={(e) => void handlePickedFile(e.target.files?.[0] ?? null)}
+            onChange={onFileInputEvent}
           />
           <input
+            id={`gallery-${galleryInputId}`}
             ref={galleryInputRef}
             type="file"
             accept="image/*"
-            className="hidden"
+            className="sr-only"
             disabled={busy}
-            onChange={(e) => void handlePickedFile(e.target.files?.[0] ?? null)}
+            onChange={onFileInputEvent}
           />
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => captureInputRef.current?.click()}
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-base font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+          <label
+            htmlFor={`capture-${captureInputId}`}
+            className={cn(
+              "inline-flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-base font-semibold text-white hover:bg-indigo-500",
+              busy && "pointer-events-none opacity-50"
+            )}
           >
             <Camera className="h-5 w-5 shrink-0" />
             {busy ? "Распознаём…" : "Снять QR камерой"}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => galleryInputRef.current?.click()}
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-base font-medium text-white hover:bg-white/15 disabled:opacity-50"
+          </label>
+          <label
+            htmlFor={`gallery-${galleryInputId}`}
+            className={cn(
+              "inline-flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-base font-medium text-white hover:bg-white/15",
+              busy && "pointer-events-none opacity-50"
+            )}
           >
             <ImageIcon className="h-5 w-5 shrink-0" />
             Выбрать из медиатеки
-          </button>
+          </label>
           {serverUploadError ? <p className="text-center text-sm text-red-300">{serverUploadError}</p> : null}
           {fileError && (
             <div className="flex flex-col gap-3">
