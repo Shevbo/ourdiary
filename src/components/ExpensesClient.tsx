@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { Plus, X, Wallet, QrCode, Pencil, Trash2, ImagePlus, Camera } from "lucide-react";
+import { Plus, X, Wallet, QrCode, Pencil, Trash2, ImagePlus, Camera, ScanLine } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -121,6 +121,8 @@ export default function ExpensesClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showQrScanner, setShowQrScanner] = useState(false);
+  const [tabscannerBusy, setTabscannerBusy] = useState(false);
+  const tabscannerFileInputRef = useRef<HTMLInputElement>(null);
   const [receiptQrUploadError, setReceiptQrUploadError] = useState("");
   const [categoryOptions, setCategoryOptions] = useState<{ code: string; label: string }[]>([]);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -377,6 +379,49 @@ export default function ExpensesClient({
         setReceiptQrUploadError(msg);
       } finally {
         setLoading(false);
+      }
+    },
+    [router]
+  );
+
+  const importFromReceiptOcr = useCallback(
+    async (file: File | null) => {
+      if (!file?.size) return;
+      setReceiptQrUploadError("");
+      if (file.size > 32 * 1024 * 1024) {
+        const msg = "Файл больше 32 МБ";
+        setError(msg);
+        setReceiptQrUploadError(msg);
+        return;
+      }
+      setError("");
+      try {
+        const compressed = await compressImageFileForReceiptUpload(file);
+        if (compressed.size > 32 * 1024 * 1024) {
+          const msg = "После сжатия файл всё ещё больше 32 МБ — снимите чек ближе или с меньшим разрешением.";
+          setError(msg);
+          setReceiptQrUploadError(msg);
+          return;
+        }
+        setTabscannerBusy(true);
+        const fd = new FormData();
+        fd.append("file", compressed);
+        const res = await fetch("/api/expenses/from-receipt-ocr", { method: "POST", body: fd });
+        const raw = await res.text();
+        if (!res.ok) {
+          const msg = receiptPhotoUploadErrorMessage(res, raw);
+          setError(msg);
+          setReceiptQrUploadError(msg);
+          return;
+        }
+        setShowForm(false);
+        router.refresh();
+      } catch {
+        const msg = "Ошибка соединения";
+        setError(msg);
+        setReceiptQrUploadError(msg);
+      } finally {
+        setTabscannerBusy(false);
       }
     },
     [router]
@@ -1101,20 +1146,51 @@ export default function ExpensesClient({
               </h2>
               <div className="flex items-center gap-1">
                 {!editingId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReceiptQrUploadError("");
-                      resumeExpenseFormAfterQr.current = true;
-                      setShowForm(false);
-                      setShowQrScanner(true);
-                    }}
-                    className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0"
-                    title="Сканировать QR чека (камера или галерея)"
-                  >
-                    <QrCode className="h-4 w-4 shrink-0" />
-                    <span className="hidden sm:inline">QR чека</span>
-                  </button>
+                  <>
+                    <input
+                      ref={tabscannerFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      disabled={tabscannerBusy || loading}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        e.target.value = "";
+                        void importFromReceiptOcr(f);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReceiptQrUploadError("");
+                        tabscannerFileInputRef.current?.click();
+                      }}
+                      disabled={tabscannerBusy || loading}
+                      className={cn(
+                        "flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0",
+                        (tabscannerBusy || loading) && "opacity-60 cursor-not-allowed"
+                      )}
+                      title="OCR чека без QR (Tabscanner): снимите чек целиком"
+                    >
+                      <ScanLine className="h-4 w-4 shrink-0" />
+                      <span className="hidden sm:inline">{tabscannerBusy ? "Скан…" : "Скан чека"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReceiptQrUploadError("");
+                        resumeExpenseFormAfterQr.current = true;
+                        setShowForm(false);
+                        setShowQrScanner(true);
+                      }}
+                      className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0"
+                      title="Сканировать QR чека (камера или галерея)"
+                    >
+                      <QrCode className="h-4 w-4 shrink-0" />
+                      <span className="hidden sm:inline">QR чека</span>
+                    </button>
+                  </>
                 )}
                 <button
                   type="button"
