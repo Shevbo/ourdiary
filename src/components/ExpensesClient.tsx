@@ -269,6 +269,40 @@ export default function ExpensesClient({
   const barGap = 4;
   const barW = (chartW - barGap * (monthlyTotals.length + 1)) / monthlyTotals.length;
 
+  const importFromReceiptQrRaw = useCallback(
+    async (qrraw: string) => {
+      if (!qrraw.trim()) return;
+      setReceiptQrUploadError("");
+      setError("");
+      try {
+        setLoading(true);
+        const res = await fetch("/api/expenses/from-receipt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ qrraw }),
+        });
+        const raw = await res.text();
+        if (!res.ok) {
+          const msg = receiptPhotoUploadErrorMessage(res, raw);
+          setError(msg);
+          setReceiptQrUploadError(msg);
+          return;
+        }
+        resumeExpenseFormAfterQr.current = false;
+        setShowQrScanner(false);
+        setShowForm(false);
+        router.refresh();
+      } catch {
+        const msg = "Ошибка соединения";
+        setError(msg);
+        setReceiptQrUploadError(msg);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [router]
+  );
+
   const importFromReceiptPhoto = useCallback(
     async (file: File | null) => {
       if (!file?.size) return;
@@ -865,6 +899,7 @@ export default function ExpensesClient({
 
       {showQrScanner && (
         <ReceiptQrScanner
+          onDecodedQrRaw={(q) => void importFromReceiptQrRaw(q)}
           onReceiptPhoto={(f) => void importFromReceiptPhoto(f)}
           receiptPhotoBusy={loading}
           serverUploadError={receiptQrUploadError}

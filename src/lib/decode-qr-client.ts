@@ -2,6 +2,7 @@
 
 /**
  * Распознавание QR с файла в браузере (до отправки на сервер).
+ * Порядок: нативный BarcodeDetector, ZXing WASM (barcode-detector / стек как у barqode), html5-qrcode, jsQR.
  */
 import { Html5Qrcode } from "html5-qrcode";
 import jsQR from "jsqr";
@@ -118,6 +119,30 @@ async function imageBitmapScaledForDetect(file: File): Promise<ImageBitmap> {
   return out;
 }
 
+/** Ponyfill ZXing (как у barqode: barcode-detector); если нет нативного API или он не прочитал QR. */
+async function tryBarcodeDetectorPonyfillFromFile(file: File): Promise<string | null> {
+  if (typeof createImageBitmap === "undefined") return null;
+  let bmp: ImageBitmap | null = null;
+  try {
+    const { BarcodeDetector } = await import("barcode-detector/pure");
+    const detector = new BarcodeDetector({ formats: ["qr_code"] });
+    bmp = await imageBitmapScaledForDetect(file);
+    const codes = await detector.detect(bmp);
+    for (const c of codes) {
+      const raw = typeof c.rawValue === "string" ? c.rawValue.trim() : "";
+      if (raw) {
+        const q = canonicalFnsQrraw(raw);
+        if (q) return q;
+      }
+    }
+  } catch {
+    /* ignore */
+  } finally {
+    bmp?.close();
+  }
+  return null;
+}
+
 async function decodeQrFromImageFileInner(file: File): Promise<string | null> {
   const detector = getNativeBarcodeDetector();
   if (detector && typeof createImageBitmap !== "undefined") {
@@ -137,9 +162,12 @@ async function decodeQrFromImageFileInner(file: File): Promise<string | null> {
         bmp.close();
       }
     } catch {
-      /* дальше html5 / jsQR */
+      /* дальше ponyfill / html5 / jsQR */
     }
   }
+
+  const fromPony = await tryBarcodeDetectorPonyfillFromFile(file);
+  if (fromPony) return fromPony;
 
   const elId = `decode-qr-file-${++fileScanBoxCounter}`;
   const hidden = document.createElement("div");

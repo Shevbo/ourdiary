@@ -8,10 +8,11 @@
 
 ## Поток данных
 
-1. Браузер: `POST /api/expenses/from-receipt`, multipart поле `file`.
-2. Next.js: `normalizeReceiptImageForApi` (HEIC/WebP при необходимости) → `preprocessReceiptImageForQrScan` (EXIF-rotate, max 4096 px по длинной стороне, JPEG, размер ~≤7 МБ).
-3. Если задан `OURDIARY_QR_DECODE_URL` — POST подготовленного JPEG на sidecar `/decode`; иначе `decodeQrFromImageBuffer` в процессе Next.js.
-4. Строка QR → канонизация → **ProverkaCheka только `qrraw`** (исходное фото в API проверки не шлём).
+1. Браузер: при импорте чека сначала клиент пытается прочитать QR (`src/lib/decode-qr-client.ts`: нативный BarcodeDetector, затем ZXing WASM из пакета `barcode-detector/pure` — тот же стек, что у [barqode](https://github.com/svecosystem/barqode), без Svelte). При успехе — `POST /api/expenses/from-receipt` с JSON `{ "qrraw": "..." }` без фото.
+2. Иначе: `POST /api/expenses/from-receipt`, multipart поле `file`.
+3. Next.js: `normalizeReceiptImageForApi` (HEIC/WebP при необходимости) → `preprocessReceiptImageForQrScan` (EXIF-rotate, max 4096 px по длинной стороне, JPEG, размер ~≤7 МБ).
+4. Если задан `OURDIARY_QR_DECODE_URL` — POST подготовленного JPEG на sidecar `/decode`; иначе `decodeQrFromImageBuffer` в процессе Next.js.
+5. Строка QR → канонизация → **ProverkaCheka только `qrraw`** (исходное фото в API проверки не шлём).
 
 ## PM2 на hoster
 

@@ -4,21 +4,23 @@ import { useEffect, useRef, useState, useId, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { X, Camera, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { decodeQrFromImageFile } from "@/lib/decode-qr-client";
 
 type Props = {
   onClose: () => void;
   onReceiptPhoto: (file: File) => void | Promise<void>;
+  onDecodedQrRaw?: (qrraw: string) => void | Promise<void>;
   receiptPhotoBusy?: boolean;
   serverUploadError?: string;
 };
 
 /**
- * Чек по фото: только выбор/съёмка через &lt;input type="file"&gt; (label htmlFor — надёжнее на iOS).
- * Распознавание QR — на сервере (ZBar/токен ProverkaCheka), не в браузере.
+ * Чек по фото: file input + label (надёжнее на iOS). Сначала QR в браузере, иначе загрузка на сервер.
  */
 export default function ReceiptQrScanner({
   onClose,
   onReceiptPhoto,
+  onDecodedQrRaw,
   receiptPhotoBusy,
   serverUploadError,
 }: Props) {
@@ -52,15 +54,22 @@ export default function ReceiptQrScanner({
       setFileError("");
       setBusy(true);
       try {
+        if (onDecodedQrRaw) {
+          const q = await decodeQrFromImageFile(file);
+          if (q) {
+            await Promise.resolve(onDecodedQrRaw(q));
+            return;
+          }
+        }
         await Promise.resolve(onReceiptPhoto(file));
       } catch (e) {
-        setFileError(e instanceof Error ? e.message : "Не удалось отправить фото");
+        setFileError(e instanceof Error ? e.message : "Не удалось обработать фото");
       } finally {
         setBusy(false);
         clearFileInputs();
       }
     },
-    [clearFileInputs, onReceiptPhoto]
+    [clearFileInputs, onReceiptPhoto, onDecodedQrRaw]
   );
 
   function onFileInputEvent(ev: React.ChangeEvent<HTMLInputElement>) {
@@ -94,7 +103,11 @@ export default function ReceiptQrScanner({
           aria-live="polite"
         >
           <p className="text-center text-white text-sm font-medium">
-            {receiptPhotoBusy ? "Импорт чека на сервере…" : "Подготовка фото…"}
+            {receiptPhotoBusy
+              ? "Импорт чека на сервере…"
+              : busy && !receiptPhotoBusy
+                ? "Распознавание QR в браузере…"
+                : "Подготовка…"}
           </p>
         </div>
       )}
@@ -116,7 +129,16 @@ export default function ReceiptQrScanner({
 
       <div className="mx-auto flex w-full max-w-md flex-col gap-4 rounded-xl border border-white/15 bg-white/5 p-5">
         <p className="text-center text-sm text-white/90">
-          Снимок или фото из медиатеки отправляется на <strong className="text-white">сервер</strong> — QR читается там (не в браузере телефона).
+          Сначала читаем QR в браузере (нативный API, при необходимости ZXing WASM из{" "}
+          <a
+            href="https://github.com/svecosystem/barqode"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-indigo-300 underline underline-offset-2"
+          >
+            того же стека, что barqode
+          </a>
+          ). Если не вышло — фото уходит на сервер.
         </p>
         <input
           id={`capture-${captureInputId}`}
@@ -162,8 +184,8 @@ export default function ReceiptQrScanner({
       </div>
 
       <p className="mt-auto pt-3 text-center text-[11px] text-white/45 px-2">
-        Для строк позиций из ФНС на сервере нужен <strong className="text-white/70">PROVERKACHEKA_API_TOKEN</strong> в окружении хостинга.
-        Без токена сервер пытается прочитать QR с фото (ZBar).
+        ZXing WASM может один раз подгрузиться с CDN (см. barcode-detector при жёстком CSP). Для позиций чека на сервере нужен{" "}
+        <strong className="text-white/70">PROVERKACHEKA_API_TOKEN</strong>.
       </p>
     </div>
   );
