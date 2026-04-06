@@ -22,16 +22,21 @@ async function main() {
     ? `да (${env.proxyUrl.replace(/:[^:@/]+@/, ":****@")})`
     : "нет (прямое соединение — для регионов с ограничением Google добавьте AGENT_PROXY в .env)";
   console.log("Прокси:", proxyHint);
-  console.log("Модель:", env.model);
+  console.log("Модель по умолчанию (AGENT_LLM_MODEL):", env.model);
   if (!env.proxyUrl?.trim()) {
     console.warn(
       "Внимание: без AGENT_PROXY запрос может завершиться ошибкой региона (FAILED_PRECONDITION / User location is not supported)."
     );
   }
 
+  /** Тяжёлые preview-модели могут не уложиться в таймаут; smoke проверяет канал и прокси через быстрый вызов. */
+  const smokeModel = "gemini-2.5-flash";
+  console.log("Smoke-запрос:", smokeModel);
+
   const out = await geminiGenerateText(
     "Ответь ровно одним словом: OK",
-    "Проверка связи через прокси Shectory."
+    "Проверка связи через прокси Shectory.",
+    { model: smokeModel, maxOutputTokens: 64 }
   );
   const trimmed = out.trim();
   console.log("Ответ модели:", trimmed.slice(0, 120));

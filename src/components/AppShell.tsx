@@ -4,7 +4,6 @@ import { usePathname } from "next/navigation";
 import Navigation from "./Navigation";
 import PushNotificationsOptIn from "./PushNotificationsOptIn";
 import MobileHeader from "./MobileHeader";
-import SwipeableMain from "./SwipeableMain";
 
 const NO_NAV_PATHS = ["/login", "/security"];
 
@@ -27,7 +26,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 md:ml-56 pb-16 md:pb-0 flex flex-col min-w-0">
         <MobileHeader />
         <PushNotificationsOptIn />
-        <SwipeableMain>{children}</SwipeableMain>
+        <div className="flex-1 flex flex-col min-w-0">{children}</div>
       </main>
     </div>
   );
