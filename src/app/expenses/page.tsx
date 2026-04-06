@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import ExpensesClient from "@/components/ExpensesClient";
 import { subMonths, startOfMonth, format } from "date-fns";
 import { ru } from "date-fns/locale";
+import { addExpenseToCategoryBuckets } from "@/lib/expense-category-aggregation";
 export const dynamic = "force-dynamic";
 
 export default async function ExpensesPage() {
@@ -25,7 +26,12 @@ export default async function ExpensesPage() {
     }),
     prisma.expense.findMany({
       where: { date: { gte: chartFrom } },
-      select: { date: true, amount: true, category: true },
+      select: {
+        date: true,
+        amount: true,
+        category: true,
+        receiptLines: { select: { amount: true, category: true } },
+      },
     }),
   ]);
 
@@ -51,8 +57,15 @@ export default async function ExpensesPage() {
     const k = format(row.date, "yyyy-MM");
     bucket[k] = (bucket[k] ?? 0) + Number(row.amount);
     if (!bucketByCat[k]) bucketByCat[k] = {};
-    const cat = row.category;
-    bucketByCat[k]![cat] = (bucketByCat[k]![cat] ?? 0) + Number(row.amount);
+    const byMonth = bucketByCat[k]!;
+    addExpenseToCategoryBuckets(byMonth, {
+      amount: Number(row.amount),
+      category: row.category,
+      receiptLines: row.receiptLines.map((r) => ({
+        amount: Number(r.amount),
+        category: r.category,
+      })),
+    });
   }
 
   const monthlyTotals: {

@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { cn, formatMoney, EXPENSE_CATEGORY_LABELS } from "@/lib/utils";
+import { addExpenseToCategoryBuckets } from "@/lib/expense-category-aggregation";
+import { categoryBarFillForCode, sortCategoryCodesForStack } from "@/lib/expense-category-visual";
 import { compressImageFileForReceiptUpload } from "@/lib/compress-receipt-image-client";
 
 type ExpenseReceiptLineRow = {
@@ -167,6 +169,25 @@ export default function ExpensesClient({
     [categoryPairs]
   );
 
+  /** Порядок сегментов в графике: базовые цвета, затем категории из БД по порядку справочника. */
+  const categoryStackPriority = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const c of CATEGORY_STACK_ORDER) {
+      if (!seen.has(c)) {
+        out.push(c);
+        seen.add(c);
+      }
+    }
+    for (const c of categoryOptions) {
+      if (!seen.has(c.code)) {
+        out.push(c.code);
+        seen.add(c.code);
+      }
+    }
+    return out;
+  }, [categoryOptions]);
+
   const refreshCategoryOptions = useCallback(async () => {
     try {
       const cRes = await fetch("/api/expense-categories");
@@ -293,7 +314,13 @@ export default function ExpensesClient({
 
   const filtered = useMemo(() => {
     let list = expenses;
-    if (filterCategory) list = list.filter((e) => e.category === filterCategory);
+    if (filterCategory) {
+      list = list.filter(
+        (e) =>
+          e.category === filterCategory ||
+          e.receiptLines.some((r) => r.category === filterCategory)
+      );
+    }
     if (filterPeriod !== "all") {
       const now = new Date();
       const from = new Date();
@@ -308,7 +335,7 @@ export default function ExpensesClient({
   const totalByCategory = useMemo(() => {
     const map: Record<string, number> = {};
     for (const e of filtered) {
-      map[e.category] = (map[e.category] ?? 0) + e.amount;
+      addExpenseToCategoryBuckets(map, e);
     }
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
   }, [filtered]);
@@ -853,7 +880,11 @@ export default function ExpensesClient({
                 let yBottom = chartH;
                 const segments: { cat: string; h: number }[] = [];
                 if (m.total > 0 && h > 0) {
-                  for (const cat of CATEGORY_STACK_ORDER) {
+                  const catsInMonth = Object.entries(m.byCategory)
+                    .filter(([, amt]) => amt != null && amt > 0)
+                    .map(([c]) => c);
+                  const ordered = sortCategoryCodesForStack(catsInMonth, categoryStackPriority);
+                  for (const cat of ordered) {
                     const amt = m.byCategory[cat];
                     if (!amt || amt <= 0) continue;
                     const segH = (amt / m.total) * h;
@@ -883,7 +914,7 @@ export default function ExpensesClient({
                             width={barW}
                             height={Math.max(segH, 0)}
                             rx={0}
-                            fill={CATEGORY_BAR_FILL[cat] ?? "#64748b"}
+                            fill={categoryBarFillForCode(cat, CATEGORY_BAR_FILL)}
                             opacity={0.92}
                           />
                         );
@@ -927,8 +958,11 @@ export default function ExpensesClient({
                     </div>
                     <div className="h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-indigo-500 rounded-full"
-                        style={{ width: `${(sum / maxCat) * 100}%` }}
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${(sum / maxCat) * 100}%`,
+                          backgroundColor: categoryBarFillForCode(cat, CATEGORY_BAR_FILL),
+                        }}
                       />
                     </div>
                   </div>
