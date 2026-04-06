@@ -4,17 +4,19 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canonicalFnsQrraw, dateFromFnsT, parseFnsQrRaw } from "@/lib/fns-qr";
 import { decodeQrFromImageBuffer } from "@/lib/decode-qr-from-buffer";
+import { decodeQrViaSidecar } from "@/lib/qr-decode-sidecar";
 import { getProverkachekaToken } from "@/lib/proverkacheka-env";
 import { normalizeReceiptImageForApi } from "@/lib/receipt-image-normalize";
+import { preprocessReceiptImageForQrScan } from "@/lib/receipt-qr-preprocess";
 import {
   callProverkachekaCheck,
   extractReceiptImportMetaFromProverkachekaJson,
   fallbackReceiptLinesFromFnsParams,
-  httpStatusForProverkachekaError,
   type ReceiptImportMeta,
 } from "@/lib/receipt-proverkacheka";
 
-const MAX_RECEIPT_IMAGE_BYTES = 8 * 1024 * 1024;
+/** До предобработки на сервере (см. preprocessReceiptImageForQrScan); nginx — client_max_body_size ≥ 32m. */
+const MAX_RECEIPT_IMAGE_BYTES = 32 * 1024 * 1024;
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -38,7 +40,7 @@ export async function POST(req: Request) {
     const file = form.get("file");
     if (file instanceof File && file.size > 0) {
       if (file.size > MAX_RECEIPT_IMAGE_BYTES) {
-        return NextResponse.json({ error: "Файл слишком большой (макс. 8 МБ)" }, { status: 400 });
+        return NextResponse.json({ error: "Файл слишком большой (макс. 32 МБ до обработки)" }, { status: 400 });
       }
       imageBuffer = Buffer.from(await file.arrayBuffer());
       imageMime = file.type || "image/jpeg";
@@ -62,50 +64,29 @@ export async function POST(req: Request) {
     );
   }
 
-  /** Импорт по фото через ProverkaCheka (нужен токен на сервере). */
-  if (imageBuffer && token) {
+  if (imageBuffer) {
     try {
-      const prepared = await normalizeReceiptImageForApi(imageBuffer, imageMime, imageName);
-      const r = await callProverkachekaCheck(token, {
-        file: prepared.buffer,
-        filename: prepared.filename,
-        mime: prepared.mime,
-      });
-      if (!r.ok) {
-        return NextResponse.json(
-          { error: r.error },
-          { status: httpStatusForProverkachekaError(r.error, r.code) }
-        );
-      }
-      const expenseDate = dateFromFnsT(r.parsedQr.t) ?? new Date();
-      const metaNote = `Импорт чека по фото (${r.lines.length} поз.) ФН ${r.parsedQr.fn ?? "—"} ФД ${r.parsedQr.i ?? "—"}`;
-      const importMeta = extractReceiptImportMetaFromProverkachekaJson(r.rawJson);
-      return await persistExpenseLines(session.user.id, r.lines, expenseDate, metaNote, "proverkacheka", importMeta);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Ошибка при обработке фото чека";
-      return NextResponse.json({ error: msg }, { status: 500 });
-    }
-  }
+      const converted = await normalizeReceiptImageForApi(imageBuffer, imageMime, imageName);
+      const prepped = await preprocessReceiptImageForQrScan(converted.buffer);
 
-  /** Фото без токена: извлекаем QR на сервере (sharp + ZBar), дальше как по строке. */
-  if (imageBuffer && !token) {
-    try {
-      const raw = await decodeQrFromImageBuffer(imageBuffer);
+      let raw = await decodeQrViaSidecar(prepped, "image/jpeg");
+      if (!raw) {
+        raw = await decodeQrFromImageBuffer(prepped);
+      }
+
       const canon = raw ? (canonicalFnsQrraw(raw) ?? raw.trim()) : null;
-      if (canon) {
-        qrraw = canon;
-        imageBuffer = undefined;
-      } else {
+      if (!canon) {
         return NextResponse.json(
           {
             error:
-              "Не удалось прочитать QR на фото. Снимите QR крупнее и контрастнее или добавьте PROVERKACHEKA_API_TOKEN в переменные окружения сервера (Vercel → Settings → Environment Variables). Локальный .env действует только при разработке.",
+              "Не удалось прочитать QR на фото. Снимите QR крупнее и контрастнее; на сервере можно поднять ourdiary-qr-decode и задать OURDIARY_QR_DECODE_URL (см. docs/qr-decode-service.md).",
           },
           { status: 422 }
         );
       }
+      qrraw = canon;
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Ошибка распознавания QR";
+      const msg = e instanceof Error ? e.message : "Ошибка обработки фото чека";
       return NextResponse.json({ error: msg }, { status: 500 });
     }
   }

@@ -273,8 +273,8 @@ export default function ExpensesClient({
     async (file: File | null) => {
       if (!file?.size) return;
       setReceiptQrUploadError("");
-      if (file.size > 8 * 1024 * 1024) {
-        const msg = "Файл больше 8 МБ";
+      if (file.size > 32 * 1024 * 1024) {
+        const msg = "Файл больше 32 МБ";
         setError(msg);
         setReceiptQrUploadError(msg);
         return;
@@ -282,8 +282,8 @@ export default function ExpensesClient({
       setError("");
       try {
         const compressed = await compressImageFileForReceiptUpload(file);
-        if (compressed.size > 8 * 1024 * 1024) {
-          const msg = "После сжатия файл всё ещё больше 8 МБ — снимите чек ближе или с меньшим разрешением.";
+        if (compressed.size > 32 * 1024 * 1024) {
+          const msg = "После сжатия файл всё ещё больше 32 МБ — снимите чек ближе или с меньшим разрешением.";
           setError(msg);
           setReceiptQrUploadError(msg);
           return;

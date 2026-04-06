@@ -44,7 +44,10 @@ if [[ -n "$UNIT" ]]; then
   fi
 elif command -v pm2 &>/dev/null; then
   ECOSYSTEM="$ROOT/ecosystem.config.cjs"
-  if pm2 describe ourdiary &>/dev/null; then
+  if [[ -f "$ECOSYSTEM" ]] && pm2 describe ourdiary &>/dev/null; then
+    echo "reload: pm2 ecosystem (ourdiary + ourdiary-qr-decode)"
+    pm2 reload "$ECOSYSTEM" --update-env
+  elif pm2 describe ourdiary &>/dev/null; then
     echo "restart: pm2 ourdiary"
     pm2 restart ourdiary
   elif [[ -f "$ECOSYSTEM" ]]; then
