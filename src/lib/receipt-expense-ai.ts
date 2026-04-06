@@ -9,14 +9,15 @@ import {
   normalizeExpenseLineKey,
 } from "@/lib/expense-category-hints";
 
-const LEGAL_ABBREV: { re: RegExp; short: string }[] = [
-  { re: /\bОБЩЕСТВО\s+С\s+ОГРАНИЧЕННОЙ\s+ОТВЕТСТВЕННОСТЬЮ\b/gi, short: "ООО" },
-  { re: /\bПУБЛИЧНОЕ\s+АКЦИОНЕРНОЕ\s+ОБЩЕСТВО\b/gi, short: "ПАО" },
-  { re: /\bЗАКРЫТОЕ\s+АКЦИОНЕРНОЕ\s+ОБЩЕСТВО\b/gi, short: "ЗАО" },
-  { re: /\bАКЦИОНЕРНОЕ\s+ОБЩЕСТВО\b/gi, short: "АО" },
-  { re: /\bТОВАРИЩЕСТВО\s+С\s+ОГРАНИЧЕННОЙ\s+ОТВЕТСТВЕННОСТЬЮ\b/gi, short: "ТОО" },
-  { re: /\bИНДИВИДУАЛЬНЫЙ\s+ПРЕДПРИНИМАТЕЛЬ\b/gi, short: "ИП" },
-  { re: /\bНЕПУБЛИЧНОЕ\s+АКЦИОНЕРНОЕ\s+ОБЩЕСТВО\b/gi, short: "НАО" },
+/** `\b` в JS не считает кириллицу «словом» — границы для юрформ задаём через (^|\s). */
+const LEGAL_ABBREV: { re: RegExp; rep: string }[] = [
+  { re: /(^|\s)(ОБЩЕСТВО\s+С\s+ОГРАНИЧЕННОЙ\s+ОТВЕТСТВЕННОСТЬЮ)/gi, rep: "$1ООО" },
+  { re: /(^|\s)(ПУБЛИЧНОЕ\s+АКЦИОНЕРНОЕ\s+ОБЩЕСТВО)/gi, rep: "$1ПАО" },
+  { re: /(^|\s)(ЗАКРЫТОЕ\s+АКЦИОНЕРНОЕ\s+ОБЩЕСТВО)/gi, rep: "$1ЗАО" },
+  { re: /(^|\s)(НЕПУБЛИЧНОЕ\s+АКЦИОНЕРНОЕ\s+ОБЩЕСТВО)/gi, rep: "$1НАО" },
+  { re: /(^|\s)(АКЦИОНЕРНОЕ\s+ОБЩЕСТВО)/gi, rep: "$1АО" },
+  { re: /(^|\s)(ТОВАРИЩЕСТВО\s+С\s+ОГРАНИЧЕННОЙ\s+ОТВЕТСТВЕННОСТЬЮ)/gi, rep: "$1ТОО" },
+  { re: /(^|\s)(ИНДИВИДУАЛЬНЫЙ\s+ПРЕДПРИНИМАТЕЛЬ)/gi, rep: "$1ИП" },
 ];
 
 /**
@@ -27,8 +28,8 @@ export function abbreviateSellerNameForPlace(raw: string): string {
   if (!s) return "";
   s = s.replace(/\s*ИНН\s*[:\s]?\s*[\d]{10,}.*$/i, "").trim();
   s = s.replace(/ИНН\s*[:\s]?\s*[\d]+/gi, "").trim();
-  for (const { re, short } of LEGAL_ABBREV) {
-    s = s.replace(re, short);
+  for (const { re, rep } of LEGAL_ABBREV) {
+    s = s.replace(re, rep);
   }
   s = s.replace(/"([^"]+)"/g, "«$1»");
   s = s.replace(/\s+/g, " ").trim();
