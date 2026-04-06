@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
         author: { select: { id: true, name: true, avatarUrl: true } },
         beneficiaryUser: { select: { id: true, name: true } },
         place: true,
+        receiptLines: { orderBy: { sortOrder: "asc" } },
       },
       orderBy: { date: "desc" },
     }),
@@ -105,6 +106,7 @@ export async function POST(req: NextRequest) {
       author: { select: { id: true, name: true, avatarUrl: true } },
       beneficiaryUser: { select: { id: true, name: true } },
       place: true,
+      receiptLines: { orderBy: { sortOrder: "asc" } },
     },
   });
 

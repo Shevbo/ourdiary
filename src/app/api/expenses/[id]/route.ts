@@ -67,7 +67,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(imageUrl !== undefined ? { imageUrl: patchImage(imageUrl) } : {}),
       ...(receiptImageUrl !== undefined ? { receiptImageUrl: patchImage(receiptImageUrl) } : {}),
     },
-    include: { author: { select: { id: true, name: true, avatarUrl: true } }, place: true },
+    include: {
+      author: { select: { id: true, name: true, avatarUrl: true } },
+      place: true,
+      receiptLines: { orderBy: { sortOrder: "asc" } },
+    },
   });
 
   return NextResponse.json(updated);

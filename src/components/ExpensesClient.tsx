@@ -10,6 +10,14 @@ import { cn, formatMoney, EXPENSE_CATEGORY_LABELS } from "@/lib/utils";
 import { canonicalFnsQrraw } from "@/lib/fns-qr";
 import { decodeQrFromImageFile } from "@/lib/decode-qr-client";
 
+type ExpenseReceiptLineRow = {
+  id: string;
+  title: string;
+  amount: number;
+  category: string;
+  sortOrder: number;
+};
+
 type Expense = {
   id: string;
   title: string;
@@ -26,6 +34,7 @@ type Expense = {
   author: { id: string; name: string | null; avatarUrl: string | null };
   beneficiaryUser: { id: string; name: string | null } | null;
   place: { id: string; name: string } | null;
+  receiptLines: ExpenseReceiptLineRow[];
 };
 
 type UserOpt = { id: string; name: string | null };
@@ -106,11 +115,6 @@ export default function ExpensesClient({
     for (const c of categoryOptions) m[c.code] = c.label;
     return m;
   }, [categoryOptions]);
-
-  const categoryStackOrder = useMemo(
-    () => (categoryOptions.length ? categoryOptions.map((c) => c.code) : CATEGORY_STACK_ORDER),
-    [categoryOptions]
-  );
 
   /** Пары [code, label] для фильтра и формы — из БД или запасной словарь */
   const categoryPairs = useMemo((): [string, string][] => {
@@ -252,6 +256,7 @@ export default function ExpensesClient({
   const importFromReceipt = useCallback(
     async (raw: string) => {
       setError("");
+      setReceiptQrUploadError("");
       setLoading(true);
       try {
         const qrraw = canonicalFnsQrraw(raw) ?? raw.trim();
@@ -262,14 +267,19 @@ export default function ExpensesClient({
         });
         const d = (await res.json().catch(() => ({}))) as { error?: string };
         if (!res.ok) {
-          setError(d.error ?? "Не удалось импортировать чек");
+          const msg = d.error ?? "Не удалось импортировать чек";
+          setError(msg);
+          setReceiptQrUploadError(msg);
           return;
         }
+        setReceiptQrUploadError("");
         setShowQrScanner(false);
         setShowForm(false);
         router.refresh();
       } catch {
-        setError("Ошибка соединения");
+        const msg = "Ошибка соединения";
+        setError(msg);
+        setReceiptQrUploadError(msg);
       } finally {
         setLoading(false);
       }
@@ -586,8 +596,39 @@ export default function ExpensesClient({
                           <span className="text-slate-600">· на {e.beneficiaryUser.name ?? e.beneficiaryUser.id}</span>
                         ) : null}
                         {e.place && <span className="text-slate-600">· {e.place.name}</span>}
-                        {e.note && <span className="text-slate-600 truncate">· {e.note}</span>}
+                        {e.note && (
+                          <span className="text-slate-600 line-clamp-2" title={e.note ?? undefined}>
+                            · {e.note}
+                          </span>
+                        )}
                       </div>
+                      {e.receiptLines.length > 0 && (
+                        <div className="mt-2 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden max-h-52 overflow-y-auto">
+                          <table className="w-full text-xs text-left">
+                            <thead className="sticky top-0 z-[1] bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                              <tr>
+                                <th className="px-2 py-1.5 font-medium text-slate-600 dark:text-slate-400">Позиция</th>
+                                <th className="px-2 py-1.5 font-medium text-right text-slate-600 dark:text-slate-400 w-[7rem]">
+                                  Сумма
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {e.receiptLines.map((r) => (
+                                <tr
+                                  key={r.id}
+                                  className="border-t border-slate-100 dark:border-slate-800/80 hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                                >
+                                  <td className="px-2 py-1 text-slate-800 dark:text-slate-200 align-top">{r.title}</td>
+                                  <td className="px-2 py-1 text-right tabular-nums text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                    {formatMoney(r.amount)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
                       <span className="text-slate-900 dark:text-white font-semibold text-sm">

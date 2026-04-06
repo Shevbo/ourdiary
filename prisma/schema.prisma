@@ -246,8 +246,25 @@ model Expense {
   author      User            @relation(fields: [authorId], references: [id])
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+  /// Позиции из чека (одна запись расхода = сумма чека; строки — детализация)
+  receiptLines ExpenseReceiptLine[]
 
   @@map("expenses")
+}
+
+model ExpenseReceiptLine {
+  id        String   @id @default(cuid())
+  expenseId String
+  expense   Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  title     String
+  amount    Decimal  @db.Decimal(10, 2)
+  /// Код категории (позже — разбор ИИ); пока OTHER
+  category  String   @default("OTHER")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([expenseId])
+  @@map("expense_receipt_lines")
 }
 
 enum ExpenseBeneficiary {

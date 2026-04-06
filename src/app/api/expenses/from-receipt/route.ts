@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { canonicalFnsQrraw, dateFromFnsT, parseFnsQrRaw } from "@/lib/fns-qr";
 import { decodeQrFromImageBuffer } from "@/lib/decode-qr-from-buffer";
 import { getProverkachekaToken } from "@/lib/proverkacheka-env";
-import { guessExpenseCategoryFromProductName } from "@/lib/receipt-category";
 import { normalizeReceiptImageForApi } from "@/lib/receipt-image-normalize";
 import {
   callProverkachekaCheck,
@@ -151,6 +150,10 @@ export async function POST(req: Request) {
   return await persistExpenseLines(session.user.id, lines, expenseDate, metaNote, source, importMeta);
 }
 
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 async function persistExpenseLines(
   userId: string,
   lines: { name: string; sum: number }[],
@@ -159,6 +162,9 @@ async function persistExpenseLines(
   source: "proverkacheka" | "qr_sum",
   importMeta?: ReceiptImportMeta
 ) {
+  const totalAmount = roundMoney(lines.reduce((s, l) => s + l.sum, 0));
+  const title = `Чек · ${lines.length} поз.`.slice(0, 200);
+
   const created = await prisma.$transaction(async (tx) => {
     let placeId: string | undefined;
     const placeName = importMeta?.placeName?.trim();
@@ -175,24 +181,39 @@ async function persistExpenseLines(
     if (importMeta?.operator) noteParts.push(`Кассир: ${importMeta.operator}`);
     const firstNote = noteParts.join("\n").slice(0, 2000);
 
-    const rows: { id: string; title: string; amount: unknown; category: string }[] = [];
+    const parent = await tx.expense.create({
+      data: {
+        title,
+        amount: totalAmount,
+        category: "OTHER",
+        date: expenseDate,
+        note: firstNote,
+        currency: "RUB",
+        authorId: userId,
+        beneficiary: "FAMILY",
+        placeId: placeId ?? null,
+      },
+    });
+
+    const receiptLines: { id: string; title: string; amount: unknown; category: string; sortOrder: number }[] = [];
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const cat = guessExpenseCategoryFromProductName(line.name);
-      const e = await tx.expense.create({
+      const row = await tx.expenseReceiptLine.create({
         data: {
+          expenseId: parent.id,
           title: line.name.slice(0, 200),
-          amount: line.sum,
-          category: cat,
-          date: expenseDate,
-          note: i === 0 ? firstNote : null,
-          currency: "RUB",
-          authorId: userId,
-          beneficiary: "FAMILY",
-          placeId: placeId ?? null,
+          amount: roundMoney(line.sum),
+          category: "OTHER",
+          sortOrder: i,
         },
       });
-      rows.push({ id: e.id, title: e.title, amount: e.amount, category: e.category });
+      receiptLines.push({
+        id: row.id,
+        title: row.title,
+        amount: row.amount,
+        category: row.category,
+        sortOrder: row.sortOrder,
+      });
     }
 
     await tx.ratingPoint.create({
@@ -204,13 +225,31 @@ async function persistExpenseLines(
       },
     });
 
-    return rows;
+    return {
+      parent,
+      receiptLines,
+    };
   });
+
+  const expenseJson = {
+    id: created.parent.id,
+    title: created.parent.title,
+    amount: Number(created.parent.amount),
+    category: created.parent.category,
+    receiptLines: created.receiptLines.map((r) => ({
+      id: r.id,
+      title: r.title,
+      amount: Number(r.amount),
+      category: r.category,
+      sortOrder: r.sortOrder,
+    })),
+  };
 
   return NextResponse.json({
     ok: true,
-    count: created.length,
+    count: 1,
+    receiptLineCount: lines.length,
     source,
-    expenses: created,
+    expenses: [expenseJson],
   });
 }

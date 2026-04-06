@@ -8,7 +8,7 @@ import { canonicalFnsQrraw } from "@/lib/fns-qr";
 import { decodeQrFromImageFile } from "@/lib/decode-qr-client";
 
 type Props = {
-  onDecoded: (qrraw: string) => void;
+  onDecoded: (qrraw: string) => void | Promise<void>;
   onClose: () => void;
   onReceiptPhoto?: (file: File) => void | Promise<void>;
   receiptPhotoBusy?: boolean;
@@ -80,13 +80,16 @@ export default function ReceiptQrScanner({
     try {
       const q = await decodeQrFromImageFile(file);
       if (q) {
-        onDecodedRef.current(q);
+        await Promise.resolve(onDecodedRef.current(q));
         return;
       }
       setLastFile(file);
       setFileError(
         "QR на снимке не распознан. Снимите крупнее или отправьте фото на сервер (если задан токен ProverkaCheka)."
       );
+    } catch (e) {
+      setLastFile(file);
+      setFileError(e instanceof Error ? e.message : "Не удалось обработать изображение");
     } finally {
       setBusy(false);
       if (captureInputRef.current) captureInputRef.current.value = "";
@@ -218,7 +221,18 @@ export default function ReceiptQrScanner({
   }, [tab, polyfillRootId]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-black/90 backdrop-blur-sm p-3 sm:p-4">
+    <div className="fixed inset-0 z-[60] flex flex-col bg-black/90 backdrop-blur-sm p-3 sm:p-4 relative">
+      {(busy || receiptPhotoBusy) && (
+        <div
+          className="absolute inset-0 z-[70] flex flex-col items-center justify-center gap-2 bg-black/65 px-4"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="text-center text-white text-sm font-medium">
+            {receiptPhotoBusy ? "Импорт чека в расходы…" : "Распознавание QR…"}
+          </p>
+        </div>
+      )}
       <div className="flex justify-end mb-1">
         <button
           type="button"

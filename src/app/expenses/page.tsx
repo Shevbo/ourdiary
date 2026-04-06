@@ -19,6 +19,7 @@ export default async function ExpensesPage() {
         author: { select: { id: true, name: true, avatarUrl: true } },
         beneficiaryUser: { select: { id: true, name: true } },
         place: true,
+        receiptLines: { orderBy: { sortOrder: "asc" } },
       },
       orderBy: { date: "desc" },
     }),
@@ -35,6 +36,13 @@ export default async function ExpensesPage() {
     date: e.date.toISOString(),
     createdAt: e.createdAt.toISOString(),
     updatedAt: e.updatedAt.toISOString(),
+    receiptLines: e.receiptLines.map((r) => ({
+      id: r.id,
+      title: r.title,
+      amount: Number(r.amount),
+      category: r.category,
+      sortOrder: r.sortOrder,
+    })),
   }));
 
   const bucket: Record<string, number> = {};
