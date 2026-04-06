@@ -1,6 +1,13 @@
 import { geminiGenerateText, isAgentGeminiConfigured } from "@shectory/gemini-proxy";
+import { prisma } from "@/lib/prisma";
 import { guessExpenseCategoryFromProductName } from "@/lib/receipt-category";
 import type { ReceiptImportMeta } from "@/lib/receipt-proverkacheka";
+import {
+  formatHintsForPrompt,
+  loadSemanticHintsForLineNames,
+  loadTopHintsForPrompt,
+  normalizeExpenseLineKey,
+} from "@/lib/expense-category-hints";
 
 const LEGAL_ABBREV: { re: RegExp; short: string }[] = [
   { re: /\bОБЩЕСТВО\s+С\s+ОГРАНИЧЕННОЙ\s+ОТВЕТСТВЕННОСТЬЮ\b/gi, short: "ООО" },
@@ -18,6 +25,8 @@ const LEGAL_ABBREV: { re: RegExp; short: string }[] = [
 export function abbreviateSellerNameForPlace(raw: string): string {
   let s = raw.replace(/\s+/g, " ").trim();
   if (!s) return "";
+  s = s.replace(/\s*ИНН\s*[:\s]?\s*[\d]{10,}.*$/i, "").trim();
+  s = s.replace(/ИНН\s*[:\s]?\s*[\d]+/gi, "").trim();
   for (const { re, short } of LEGAL_ABBREV) {
     s = s.replace(re, short);
   }
@@ -36,7 +45,10 @@ export function resolvePlaceNameForExpense(importMeta?: ReceiptImportMeta): stri
     if (abbr) return abbr;
   }
   const retail = importMeta?.placeName?.trim();
-  if (retail) return retail.slice(0, 200);
+  if (retail) {
+    const abbr = abbreviateSellerNameForPlace(retail);
+    return (abbr || retail).slice(0, 200);
+  }
   return undefined;
 }
 
@@ -51,16 +63,19 @@ export function parseReceiptMetaFromExpenseNote(note: string | null | undefined)
   let rest = t.slice(idx).replace(/^Продавец\s*:\s*/i, "");
   const cutInn = rest.search(/\bИНН\s*:/i);
   if (cutInn >= 0) rest = rest.slice(0, cutInn);
+  const cutInnGlued = rest.search(/ИНН\s*[:\s]?\s*[\d]/i);
+  if (cutInnGlued >= 0) rest = rest.slice(0, cutInnGlued);
   const cutCash = rest.search(/\bКассир\s*:/i);
   if (cutCash >= 0) rest = rest.slice(0, cutCash);
-  const seller = rest.replace(/\s+/g, " ").trim();
+  let seller = rest.replace(/\s+/g, " ").trim();
+  seller = seller.replace(/\s*ИНН\s*.*$/i, "").trim();
   if (!seller) return {};
   return { sellerName: seller };
 }
 
 export type CategoryDefinitionRow = { code: string; label: string };
 
-function dominantCategoryByAmount(categories: string[], sums: number[]): string {
+export function dominantCategoryByAmount(categories: string[], sums: number[]): string {
   if (categories.length === 0 || categories.length !== sums.length) return "UNRECOGNIZED";
   const acc = new Map<string, number>();
   for (let i = 0; i < categories.length; i++) {
@@ -117,6 +132,7 @@ function normalizeCode(v: unknown, allowed: Set<string>): string {
 
 /**
  * Классификация категорий чека: Gemini при наличии AGENT_LLM_API_KEY, иначе эвристики по названиям позиций.
+ * Учитывает обучающий справочник `ExpenseCategorySemanticHint` (точное совпадение текста позиции).
  */
 export async function classifyReceiptExpenseLines(params: {
   lines: { name: string; sum: number }[];
@@ -128,10 +144,33 @@ export async function classifyReceiptExpenseLines(params: {
   if (!allowed.has("UNRECOGNIZED")) allowed.add("UNRECOGNIZED");
   if (!allowed.has("OTHER")) allowed.add("OTHER");
 
+  const sums = lines.map((l) => l.sum);
+  const hintMap = await loadSemanticHintsForLineNames(
+    prisma,
+    lines.map((l) => l.name)
+  );
+
+  const mergeWithHints = (lineCategories: string[]): string[] =>
+    lineCategories.map((c, i) => {
+      const key = normalizeExpenseLineKey(lines[i]!.name);
+      const h = hintMap.get(key);
+      if (h && allowed.has(h)) return h;
+      return c;
+    });
+
+  const allFromHints =
+    lines.length > 0 && lines.every((l) => hintMap.has(normalizeExpenseLineKey(l.name)));
+  if (allFromHints) {
+    const lc = lines.map((l) => hintMap.get(normalizeExpenseLineKey(l.name))!);
+    return { parentCategory: dominantCategoryByAmount(lc, sums), lineCategories: lc };
+  }
+
   const fallback = heuristicClassify(lines);
+  const fallbackMerged = mergeWithHints(fallback.lineCategories);
+  const fallbackParent = dominantCategoryByAmount(fallbackMerged, sums);
 
   if (!isAgentGeminiConfigured() || lines.length === 0) {
-    return fallback;
+    return { parentCategory: fallbackParent, lineCategories: fallbackMerged };
   }
 
   const catList = categoryDefinitions
@@ -148,6 +187,9 @@ export async function classifyReceiptExpenseLines(params: {
   if (importMeta?.retailPlaceAddress?.trim()) ctx.push(`Адрес: ${importMeta.retailPlaceAddress.trim()}`);
   if (importMeta?.placeName?.trim()) ctx.push(`Торговая точка: ${importMeta.placeName.trim()}`);
 
+  const topHints = await loadTopHintsForPrompt(prisma);
+  const hintsBlock = formatHintsForPrompt(topHints);
+
   const userText = `Строки чека (индекс с нуля):\n${linesBlock}\n\nКонтекст:\n${ctx.length ? ctx.join("\n") : "нет"}\n\nВерни JSON.`;
 
   const systemInstruction = `Ты классификатор расходов для семейного бюджета (Россия).
@@ -158,6 +200,15 @@ ${catList}
 
 Также выбери parentCategory — одна категория, лучше всего описывающая весь чек целиком (часто совпадает с доминирующей по сумме или смыслу).
 
+${
+  hintsBlock
+    ? `Примеры, которые пользователь подтвердил ранее (ориентируйся на смысл похожих товаров):
+${hintsBlock}
+
+`
+    : ""
+}
+
 Ответ строго один JSON-объект без markdown:
 {"parentCategory":"КОД","lineCategories":["КОД",...]}
 Длина lineCategories ровно ${lines.length} (по числу строк).`;
@@ -165,20 +216,20 @@ ${catList}
   try {
     const raw = await geminiGenerateText(systemInstruction, userText);
     const obj = parseJsonObject(raw);
-    if (!obj) return fallback;
+    if (!obj) return { parentCategory: fallbackParent, lineCategories: fallbackMerged };
 
-    const parentCategory = normalizeCode(obj.parentCategory, allowed);
     const lc = obj.lineCategories;
     let lineCategories: string[] = [];
     if (Array.isArray(lc) && lc.length === lines.length) {
-      lineCategories = lc.map((x) => normalizeCode(x, allowed));
+      lineCategories = mergeWithHints(lc.map((x) => normalizeCode(x, allowed)));
     } else {
-      return fallback;
+      return { parentCategory: fallbackParent, lineCategories: fallbackMerged };
     }
 
+    const parentCategory = dominantCategoryByAmount(lineCategories, sums);
     return { parentCategory, lineCategories };
   } catch (e) {
     console.warn("[receipt-expense-ai] Gemini classify failed:", e instanceof Error ? e.message : e);
-    return fallback;
+    return { parentCategory: fallbackParent, lineCategories: fallbackMerged };
   }
 }

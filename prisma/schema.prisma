@@ -115,6 +115,18 @@ model ExpenseCategoryDefinition {
   @@map("expense_category_definitions")
 }
 
+/// Обучающие примеры: нормализованный текст позиции чека → категория (для ИИ и эвристик).
+model ExpenseCategorySemanticHint {
+  id           String   @id @default(cuid())
+  textKey      String   @unique
+  categoryCode String
+  confirmCount Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("expense_category_semantic_hints")
+}
+
 enum UserRole {
   SUPERADMIN
   ADMIN

@@ -125,6 +125,14 @@ export default function ExpensesClient({
   const [receiptImageUrl, setReceiptImageUrl] = useState<string | null>(null);
   const [uploadBusy, setUploadBusy] = useState<"" | "img" | "receipt">("");
   const [spreadBusy, setSpreadBusy] = useState(false);
+  const [formReceiptLines, setFormReceiptLines] = useState<ExpenseReceiptLineRow[]>([]);
+  const [showTrainWizard, setShowTrainWizard] = useState(false);
+  const [trainMode, setTrainMode] = useState<"lines" | "parent">("lines");
+  const [trainQueue, setTrainQueue] = useState<ExpenseReceiptLineRow[]>([]);
+  const [trainStep, setTrainStep] = useState(0);
+  const [trainCategorySelect, setTrainCategorySelect] = useState("FOOD");
+  const [trainAccum, setTrainAccum] = useState<Record<string, string>>({});
+  const [trainBusy, setTrainBusy] = useState(false);
   const resumeExpenseFormAfterQr = useRef(false);
 
   const isAdmin = currentUserRole === "ADMIN" || currentUserRole === "SUPERADMIN";
@@ -142,6 +150,11 @@ export default function ExpensesClient({
     }
     return Object.entries(EXPENSE_CATEGORY_LABELS) as [string, string][];
   }, [categoryOptions]);
+
+  const trainCategoryPairs = useMemo(
+    () => categoryPairs.filter(([code]) => code !== "UNRECOGNIZED"),
+    [categoryPairs]
+  );
 
   useEffect(() => {
     setExpenses(initialExpenses);
@@ -183,6 +196,7 @@ export default function ExpensesClient({
     setNewPlaceName("");
     setImageUrl(null);
     setReceiptImageUrl(null);
+    setFormReceiptLines([]);
     setError("");
     setShowForm(true);
   }
@@ -200,6 +214,7 @@ export default function ExpensesClient({
     setNewPlaceName("");
     setImageUrl(e.imageUrl ?? null);
     setReceiptImageUrl(e.receiptImageUrl ?? null);
+    setFormReceiptLines(e.receiptLines);
     setError("");
     setShowForm(true);
   }
@@ -402,6 +417,7 @@ export default function ExpensesClient({
         category: String(r.category),
         sortOrder: Number(r.sortOrder),
       }));
+      setFormReceiptLines(normalizedLines.length ? normalizedLines : []);
       setExpenses((prev) =>
         prev.map((e) =>
           e.id === editingId
@@ -421,6 +437,147 @@ export default function ExpensesClient({
     } finally {
       setSpreadBusy(false);
     }
+  }
+
+  function closeTrainWizard() {
+    setShowTrainWizard(false);
+    setTrainQueue([]);
+    setTrainStep(0);
+    setTrainAccum({});
+    setTrainBusy(false);
+  }
+
+  function openTrainWizard() {
+    if (!editingId) return;
+    setError("");
+    const ed = expenses.find((e) => e.id === editingId);
+    if (!ed) return;
+    const q = formReceiptLines.filter((r) => r.category === "UNRECOGNIZED");
+    if (ed.receiptLines.length === 0 && ed.category === "UNRECOGNIZED") {
+      setTrainMode("parent");
+      setTrainCategorySelect(trainCategoryPairs[0]?.[0] ?? "FOOD");
+      setShowTrainWizard(true);
+      return;
+    }
+    if (q.length === 0) {
+      setError("Нет позиций с категорией «Не распознано». Сначала разнесите по категориям или добавьте чек.");
+      return;
+    }
+    setTrainMode("lines");
+    setTrainQueue(q);
+    setTrainStep(0);
+    setTrainAccum({});
+    const first = q[0]!;
+    setTrainCategorySelect(trainCategoryPairs[0]?.[0] ?? "FOOD");
+    setShowTrainWizard(true);
+  }
+
+  async function submitTrainWizardFinal(acc: Record<string, string>) {
+    if (!editingId) return;
+    setTrainBusy(true);
+    setError("");
+    try {
+      const choices = trainQueue.map((l) => ({
+        receiptLineId: l.id,
+        categoryCode: acc[l.id]!,
+      }));
+      const res = await fetch(`/api/expenses/${editingId}/confirm-hints`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ choices }),
+      });
+      const raw = await res.text();
+      let d: Record<string, unknown>;
+      try {
+        d = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        setError("Некорректный ответ сервера");
+        return;
+      }
+      if (!res.ok) {
+        setError((d.error as string) ?? "Не удалось сохранить");
+        return;
+      }
+      const cat = String(d.category ?? "");
+      setCategory(cat);
+      const lines = (d.receiptLines as Array<Record<string, unknown>> | undefined) ?? [];
+      const normalizedLines: ExpenseReceiptLineRow[] = lines.map((r) => ({
+        id: String(r.id),
+        title: String(r.title),
+        amount: Number(r.amount),
+        category: String(r.category),
+        sortOrder: Number(r.sortOrder),
+      }));
+      setFormReceiptLines(normalizedLines);
+      setExpenses((prev) =>
+        prev.map((e) =>
+          e.id === editingId
+            ? {
+                ...e,
+                category: cat,
+                receiptLines: normalizedLines.length ? normalizedLines : e.receiptLines,
+              }
+            : e
+        )
+      );
+      closeTrainWizard();
+      router.refresh();
+    } catch {
+      setError("Ошибка соединения");
+    } finally {
+      setTrainBusy(false);
+    }
+  }
+
+  async function submitParentCategoryTrain() {
+    if (!editingId) return;
+    setTrainBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/expenses/${editingId}/confirm-hints`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parentCategoryOnly: trainCategorySelect }),
+      });
+      const raw = await res.text();
+      let d: Record<string, unknown>;
+      try {
+        d = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        setError("Некорректный ответ сервера");
+        return;
+      }
+      if (!res.ok) {
+        setError((d.error as string) ?? "Не удалось сохранить");
+        return;
+      }
+      const cat = String(d.category ?? "");
+      setCategory(cat);
+      setExpenses((prev) =>
+        prev.map((e) => (e.id === editingId ? { ...e, category: cat } : e))
+      );
+      closeTrainWizard();
+      router.refresh();
+    } catch {
+      setError("Ошибка соединения");
+    } finally {
+      setTrainBusy(false);
+    }
+  }
+
+  function trainGoNext() {
+    const line = trainQueue[trainStep];
+    if (!line) return;
+    const nextAcc = { ...trainAccum, [line.id]: trainCategorySelect };
+    setTrainAccum(nextAcc);
+    if (trainStep >= trainQueue.length - 1) {
+      void submitTrainWizardFinal(nextAcc);
+      return;
+    }
+    const nextStep = trainStep + 1;
+    setTrainStep(nextStep);
+    const nl = trainQueue[nextStep]!;
+    setTrainCategorySelect(nextAcc[nl.id] ?? trainCategoryPairs[0]?.[0] ?? "FOOD");
   }
 
   async function handleSubmit(ev: React.FormEvent) {
@@ -769,6 +926,8 @@ export default function ExpensesClient({
                   onClick={() => {
                     setShowForm(false);
                     setEditingId(null);
+                    setFormReceiptLines([]);
+                    closeTrainWizard();
                   }}
                   className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white min-h-11 min-w-11 flex items-center justify-center sm:min-h-0 sm:min-w-0"
                 >
@@ -879,6 +1038,38 @@ export default function ExpensesClient({
                 />
               </div>
 
+              {editingId && formReceiptLines.length > 0 && (
+                <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <p className="text-xs font-medium text-slate-600 dark:text-slate-400 px-3 py-2 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                    Позиции чека
+                  </p>
+                  <div className="max-h-48 overflow-y-auto">
+                    <table className="w-full text-xs text-left">
+                      <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800/95">
+                        <tr>
+                          <th className="px-2 py-1.5 font-medium text-slate-600 dark:text-slate-400">Позиция</th>
+                          <th className="px-2 py-1.5 font-medium text-slate-600 dark:text-slate-400 w-[6.5rem]">Категория</th>
+                          <th className="px-2 py-1.5 font-medium text-right text-slate-600 dark:text-slate-400 w-[5.5rem]">Сумма</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {formReceiptLines.map((r) => (
+                          <tr key={r.id} className="border-t border-slate-100 dark:border-slate-800">
+                            <td className="px-2 py-1 text-slate-800 dark:text-slate-200 align-top">{r.title}</td>
+                            <td className="px-2 py-1 text-slate-600 dark:text-slate-400 align-top leading-snug">
+                              {categoryLabel[r.category] ?? r.category}
+                            </td>
+                            <td className="px-2 py-1 text-right tabular-nums text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                              {formatMoney(r.amount)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               {editingId && category === "UNRECOGNIZED" && (
                 <div className="rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/40 p-3">
                   <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
@@ -897,6 +1088,26 @@ export default function ExpensesClient({
                   </button>
                 </div>
               )}
+
+              {editingId &&
+                (category === "UNRECOGNIZED" || formReceiptLines.some((r) => r.category === "UNRECOGNIZED")) && (
+                  <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/30 p-3">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
+                      Уточните категории вручную по одной позиции — примеры сохраняются для ИИ (справочник смыслов).
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => openTrainWizard()}
+                      disabled={trainBusy || loading}
+                      className={cn(
+                        "w-full rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm font-medium text-emerald-900 dark:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/80",
+                        (trainBusy || loading) && "opacity-60 cursor-not-allowed"
+                      )}
+                    >
+                      Уточнить пошагово (обучение)
+                    </button>
+                  </div>
+                )}
 
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3 space-y-3">
                 <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Вложения</p>
@@ -963,6 +1174,8 @@ export default function ExpensesClient({
                   onClick={() => {
                     setShowForm(false);
                     setEditingId(null);
+                    setFormReceiptLines([]);
+                    closeTrainWizard();
                   }}
                   className="flex-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-300 font-medium rounded-lg px-4 py-2.5 transition-colors text-sm min-h-11 sm:min-h-0"
                 >
@@ -977,6 +1190,116 @@ export default function ExpensesClient({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showTrainWizard && editingId && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-slate-900 dark:text-white font-semibold text-lg">
+                {trainMode === "parent" ? "Категория расхода" : "Уточнение категории"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => closeTrainWizard()}
+                className="text-slate-500 hover:text-slate-900 dark:hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {trainMode === "parent" ? (
+              <>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Для этого расхода нет строк чека. Выберите категорию — она сохранится в справочнике обучения по названию
+                  расхода.
+                </p>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Категория</label>
+                  <select
+                    value={trainCategorySelect}
+                    onChange={(e) => setTrainCategorySelect(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm"
+                  >
+                    {trainCategoryPairs.map(([val, label]) => (
+                      <option key={val} value={val}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => closeTrainWizard()}
+                    className="flex-1 rounded-lg border border-slate-200 dark:border-slate-600 py-2.5 text-sm"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    type="button"
+                    disabled={trainBusy}
+                    onClick={() => void submitParentCategoryTrain()}
+                    className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 text-sm font-medium disabled:opacity-60"
+                  >
+                    {trainBusy ? "Сохранение…" : "Сохранить"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              (() => {
+                const cur = trainQueue[trainStep];
+                if (!cur) return null;
+                return (
+                  <>
+                    <p className="text-xs text-slate-500">
+                      Вопрос {trainStep + 1} из {trainQueue.length}
+                    </p>
+                    <p className="text-slate-900 dark:text-white font-medium text-sm leading-snug">{cur.title}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{formatMoney(cur.amount)}</p>
+                    <p className="text-xs text-slate-500">
+                      В какую категорию отнести эту позицию? Ответ попадёт в справочник для следующих чеков.
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Категория</label>
+                      <select
+                        value={trainCategorySelect}
+                        onChange={(e) => setTrainCategorySelect(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-sm"
+                      >
+                        {trainCategoryPairs.map(([val, label]) => (
+                          <option key={val} value={val}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => closeTrainWizard()}
+                        className="flex-1 rounded-lg border border-slate-200 dark:border-slate-600 py-2.5 text-sm"
+                      >
+                        Отмена
+                      </button>
+                      <button
+                        type="button"
+                        disabled={trainBusy}
+                        onClick={() => trainGoNext()}
+                        className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 text-sm font-medium disabled:opacity-60"
+                      >
+                        {trainBusy
+                          ? "Сохранение…"
+                          : trainStep >= trainQueue.length - 1
+                            ? "Сохранить и обучить"
+                            : "Далее"}
+                      </button>
+                    </div>
+                  </>
+                );
+              })()
+            )}
           </div>
         </div>
       )}
