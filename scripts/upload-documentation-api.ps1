@@ -2,6 +2,10 @@
 .SYNOPSIS
   Копирует documentation_api.pdf с локального ПК на сервер по SCP (OpenSSH).
 
+  ВАЖНО: запускать ТОЛЬКО в Windows PowerShell (pwsh или powershell.exe), на своём ПК.
+  НЕ вставлять этот файл в bash на Linux (ssh shectory@…). Это не команды оболочки сервера.
+  На Linux/macOS используйте: scripts/upload-documentation-api.sh
+
 .DESCRIPTION
   После копирования файл можно открыть на сервере в Cursor/IDE или положить в клон репозитория и закоммитить
   (если документация не секретная).
