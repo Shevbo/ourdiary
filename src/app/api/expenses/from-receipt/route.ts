@@ -2,14 +2,17 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { dateFromFnsT, parseFnsQrRaw } from "@/lib/fns-qr";
+import { canonicalFnsQrraw, dateFromFnsT, parseFnsQrRaw } from "@/lib/fns-qr";
+import { decodeQrFromImageBuffer } from "@/lib/decode-qr-from-buffer";
+import { getProverkachekaToken } from "@/lib/proverkacheka-env";
 import { guessExpenseCategoryFromProductName } from "@/lib/receipt-category";
 import { normalizeReceiptImageForApi } from "@/lib/receipt-image-normalize";
 import {
   callProverkachekaCheck,
+  extractReceiptImportMetaFromProverkachekaJson,
   fallbackReceiptLinesFromFnsParams,
-  fetchReceiptLinesProverkacheka,
   httpStatusForProverkachekaError,
+  type ReceiptImportMeta,
 } from "@/lib/receipt-proverkacheka";
 
 const MAX_RECEIPT_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -18,7 +21,7 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Требуется авторизация" }, { status: 401 });
 
-  const token = process.env.PROVERKACHEKA_API_TOKEN?.trim();
+  const token = getProverkachekaToken();
   const ct = req.headers.get("content-type") ?? "";
 
   let qrraw: string | undefined;
@@ -49,7 +52,8 @@ export async function POST(req: Request) {
     } catch {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
-    qrraw = String(body.qrraw ?? "").trim();
+    const rawIn = String(body.qrraw ?? "").trim();
+    qrraw = canonicalFnsQrraw(rawIn) ?? rawIn;
   }
 
   if (!qrraw && !imageBuffer) {
@@ -59,19 +63,7 @@ export async function POST(req: Request) {
     );
   }
 
-  if (imageBuffer && !token) {
-    return NextResponse.json(
-      {
-        error:
-          "Для импорта по фото чека нужен PROVERKACHEKA_API_TOKEN в переменных окружения сервера.",
-      },
-      { status: 400 }
-    );
-  }
-
-  let lines: { name: string; sum: number }[] = [];
-  let source: "proverkacheka" | "qr_sum" = "qr_sum";
-
+  /** Импорт по фото через ProverkaCheka (нужен токен на сервере). */
   if (imageBuffer && token) {
     try {
       const prepared = await normalizeReceiptImageForApi(imageBuffer, imageMime, imageName);
@@ -86,25 +78,56 @@ export async function POST(req: Request) {
           { status: httpStatusForProverkachekaError(r.error, r.code) }
         );
       }
-      lines = r.lines;
-      source = "proverkacheka";
       const expenseDate = dateFromFnsT(r.parsedQr.t) ?? new Date();
-      const metaNote = `Импорт чека по фото (${lines.length} поз.) ФН ${r.parsedQr.fn ?? "—"} ФД ${r.parsedQr.i ?? "—"}`;
-      return await persistExpenseLines(session.user.id, lines, expenseDate, metaNote);
+      const metaNote = `Импорт чека по фото (${r.lines.length} поз.) ФН ${r.parsedQr.fn ?? "—"} ФД ${r.parsedQr.i ?? "—"}`;
+      const importMeta = extractReceiptImportMetaFromProverkachekaJson(r.rawJson);
+      return await persistExpenseLines(session.user.id, r.lines, expenseDate, metaNote, "proverkacheka", importMeta);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Ошибка при обработке фото чека";
       return NextResponse.json({ error: msg }, { status: 500 });
     }
   }
 
-  const parsed = parseFnsQrRaw(qrraw!);
+  /** Фото без токена: извлекаем QR на сервере (sharp + ZBar), дальше как по строке. */
+  if (imageBuffer && !token) {
+    try {
+      const raw = await decodeQrFromImageBuffer(imageBuffer);
+      const canon = raw ? (canonicalFnsQrraw(raw) ?? raw.trim()) : null;
+      if (canon) {
+        qrraw = canon;
+        imageBuffer = undefined;
+      } else {
+        return NextResponse.json(
+          {
+            error:
+              "Не удалось прочитать QR на фото. Снимите QR крупнее и контрастнее или добавьте PROVERKACHEKA_API_TOKEN в переменные окружения сервера (Vercel → Settings → Environment Variables). Локальный .env действует только при разработке.",
+          },
+          { status: 422 }
+        );
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Ошибка распознавания QR";
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
+
+  if (!qrraw) {
+    return NextResponse.json({ error: "Пустая строка чека" }, { status: 400 });
+  }
+
+  const parsed = parseFnsQrRaw(qrraw);
   if (!parsed) return NextResponse.json({ error: "Не удалось разобрать QR" }, { status: 400 });
 
+  let lines: { name: string; sum: number }[] = [];
+  let source: "proverkacheka" | "qr_sum" = "qr_sum";
+  let importMeta: ReceiptImportMeta | undefined;
+
   if (token) {
-    const fromApi = await fetchReceiptLinesProverkacheka(qrraw!, token);
-    if (fromApi?.length) {
-      lines = fromApi;
+    const r = await callProverkachekaCheck(token, { qrraw });
+    if (r.ok && r.lines.length > 0) {
+      lines = r.lines;
       source = "proverkacheka";
+      importMeta = extractReceiptImportMetaFromProverkachekaJson(r.rawJson);
     }
   }
   if (lines.length === 0) {
@@ -116,7 +139,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          "Нет данных по чеку. Добавьте PROVERKACHEKA_API_TOKEN в .env для разбора позиций или проверьте QR.",
+          "Нет данных по чеку. Добавьте PROVERKACHEKA_API_TOKEN на сервере для позиций из ФНС или проверьте QR.",
       },
       { status: 422 }
     );
@@ -125,7 +148,7 @@ export async function POST(req: Request) {
   const expenseDate = dateFromFnsT(parsed.t) ?? new Date();
   const metaNote = `Импорт чека (${lines.length} поз.) ФН ${parsed.fn ?? "—"} ФД ${parsed.i ?? "—"}`;
 
-  return await persistExpenseLines(session.user.id, lines, expenseDate, metaNote, source);
+  return await persistExpenseLines(session.user.id, lines, expenseDate, metaNote, source, importMeta);
 }
 
 async function persistExpenseLines(
@@ -133,9 +156,25 @@ async function persistExpenseLines(
   lines: { name: string; sum: number }[],
   expenseDate: Date,
   metaNote: string,
-  source: "proverkacheka" | "qr_sum" = "proverkacheka"
+  source: "proverkacheka" | "qr_sum",
+  importMeta?: ReceiptImportMeta
 ) {
   const created = await prisma.$transaction(async (tx) => {
+    let placeId: string | undefined;
+    const placeName = importMeta?.placeName?.trim();
+    if (placeName) {
+      const name = placeName.slice(0, 200);
+      const existing = await tx.expensePlace.findFirst({ where: { name } });
+      placeId = existing?.id ?? (await tx.expensePlace.create({ data: { name } })).id;
+    }
+
+    const noteParts: string[] = [metaNote];
+    if (importMeta?.retailPlaceAddress) noteParts.push(importMeta.retailPlaceAddress);
+    if (importMeta?.sellerName) noteParts.push(`Продавец: ${importMeta.sellerName}`);
+    if (importMeta?.userInn) noteParts.push(`ИНН: ${importMeta.userInn}`);
+    if (importMeta?.operator) noteParts.push(`Кассир: ${importMeta.operator}`);
+    const firstNote = noteParts.join("\n").slice(0, 2000);
+
     const rows: { id: string; title: string; amount: unknown; category: string }[] = [];
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -146,9 +185,11 @@ async function persistExpenseLines(
           amount: line.sum,
           category: cat,
           date: expenseDate,
-          note: i === 0 ? metaNote : null,
+          note: i === 0 ? firstNote : null,
           currency: "RUB",
           authorId: userId,
+          beneficiary: "FAMILY",
+          placeId: placeId ?? null,
         },
       });
       rows.push({ id: e.id, title: e.title, amount: e.amount, category: e.category });

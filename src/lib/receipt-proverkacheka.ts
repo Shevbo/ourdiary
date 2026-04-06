@@ -248,6 +248,29 @@ function extractProverkachekaPayload(data: unknown): unknown {
   return data;
 }
 
+/** Метаданные чека из `data.json` ProverkaCheka для полей Expense (место, продавец, …). */
+export type ReceiptImportMeta = {
+  placeName?: string;
+  retailPlaceAddress?: string;
+  sellerName?: string;
+  operator?: string;
+  userInn?: string;
+};
+
+export function extractReceiptImportMetaFromProverkachekaJson(data: unknown): ReceiptImportMeta {
+  const payload = extractProverkachekaPayload(data);
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return {};
+  const o = payload as Record<string, unknown>;
+  const trim = (v: unknown) => (typeof v === "string" ? v.trim() : undefined);
+  return {
+    placeName: trim(o.retailPlace),
+    retailPlaceAddress: trim(o.retailPlaceAddress),
+    sellerName: trim(o.user),
+    operator: trim(o.operator),
+    userInn: trim(o.userInn),
+  };
+}
+
 function num(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v === "string") {

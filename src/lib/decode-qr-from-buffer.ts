@@ -1,17 +1,7 @@
-#!/usr/bin/env node
 /**
- * Декодирует QR с изображения и печатает сырую строку (фискальный чек РФ: t=...&s=...).
- *
- * Порядок:
- *   1. sharp → greyscale + normalize + threshold (термочеки: «рваная» чёрная заливка)
- *      + @undecaf/zbar-wasm scanGrayBuffer — основной путь для фото чеков
- *   2. sharp → RGBA + ZBar scanRGBABuffer
- *   3. @zxing/library + jsqr — запасные варианты
- *
- *   npm run decode-qr -- путь/к/фото.jpg
+ * Распознавание фискальной строки QR с изображения (сервер, sharp + ZBar/ZXing).
+ * Используется, когда фото пришло без PROVERKACHEKA_API_TOKEN — извлекаем qrraw локально.
  */
-import fs from "fs";
-import path from "path";
 import sharp from "sharp";
 import jsQR from "jsqr";
 import { scanGrayBuffer, scanRGBABuffer } from "@undecaf/zbar-wasm";
@@ -25,19 +15,7 @@ import {
   BarcodeFormat,
 } from "@zxing/library";
 
-const imagePath = process.argv[2]?.trim();
-if (!imagePath) {
-  console.error("usage: node scripts/decode-qr-from-image.mjs <path-to-image>");
-  process.exit(1);
-}
-
-const resolved = path.resolve(imagePath);
-if (!fs.existsSync(resolved)) {
-  console.error("Файл не найден:", resolved);
-  process.exit(1);
-}
-
-function pickQrString(symbols) {
+function pickQrString(symbols: { decode: (enc?: string) => string }[]): string | null {
   if (!symbols?.length) return null;
   for (const s of symbols) {
     const t = s.decode();
@@ -46,25 +24,27 @@ function pickQrString(symbols) {
   return null;
 }
 
-async function tryZbarGray(pipeline) {
+async function tryZbarGray(pipeline: sharp.Sharp): Promise<string | null> {
   const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
   const w = info.width;
   const h = info.height;
   if (data.length !== w * h) return null;
-  const symbols = await scanGrayBuffer(data.buffer, w, h);
+  const ab = new Uint8Array(data).buffer;
+  const symbols = await scanGrayBuffer(ab, w, h);
   return pickQrString(symbols);
 }
 
-async function tryZbarRgba(pipeline) {
+async function tryZbarRgba(pipeline: sharp.Sharp): Promise<string | null> {
   const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
   const w = info.width;
   const h = info.height;
   if (data.length !== w * h * 4) return null;
-  const symbols = await scanRGBABuffer(data.buffer, w, h);
+  const ab = new Uint8Array(data).buffer;
+  const symbols = await scanRGBABuffer(ab, w, h);
   return pickQrString(symbols);
 }
 
-function rgbaToLuminance(rgba, width, height) {
+function rgbaToLuminance(rgba: Uint8ClampedArray, width: number, height: number) {
   const out = new Uint8ClampedArray(width * height);
   for (let i = 0; i < width * height; i++) {
     const o = i * 4;
@@ -76,29 +56,32 @@ function rgbaToLuminance(rgba, width, height) {
   return out;
 }
 
-function invertLum(lum) {
+function invertLum(lum: Uint8ClampedArray) {
   const out = new Uint8ClampedArray(lum.length);
   for (let i = 0; i < lum.length; i++) out[i] = 255 - lum[i];
   return out;
 }
 
-function tryZxingOne(lum, width, height, Binarizer) {
+function tryZxingOne(
+  lum: Uint8ClampedArray,
+  width: number,
+  height: number,
+  Binarizer: typeof HybridBinarizer | typeof GlobalHistogramBinarizer
+) {
   try {
     const source = new RGBLuminanceSource(lum, width, height, width, height, 0, 0);
     const bitmap = new BinaryBitmap(new Binarizer(source));
     const reader = new MultiFormatReader();
-    reader.setHints(
-      new Map([[DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]]])
-    );
+    reader.setHints(new Map([[DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]]]));
     return reader.decode(bitmap).getText();
   } catch {
     return null;
   }
 }
 
-function tryZxing(rgba, width, height) {
+function tryZxing(rgba: Uint8ClampedArray, width: number, height: number) {
   const lum = rgbaToLuminance(rgba, width, height);
-  const variants = [
+  const variants: [typeof HybridBinarizer | typeof GlobalHistogramBinarizer, Uint8ClampedArray][] = [
     [HybridBinarizer, lum],
     [GlobalHistogramBinarizer, lum],
     [HybridBinarizer, invertLum(lum)],
@@ -111,7 +94,7 @@ function tryZxing(rgba, width, height) {
   return null;
 }
 
-function tryJsQr(rgba, width, height) {
+function tryJsQr(rgba: Uint8ClampedArray, width: number, height: number) {
   try {
     const r = jsQR(rgba, width, height);
     return r?.data ?? null;
@@ -120,15 +103,12 @@ function tryJsQr(rgba, width, height) {
   }
 }
 
-async function toRgba(pipeline) {
+async function toRgba(pipeline: sharp.Sharp) {
   const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
   return { rgba: new Uint8ClampedArray(data), width: info.width, height: info.height };
 }
 
-const base = sharp(resolved).autoOrient();
-
-/** Пары [ширина после resize, порог threshold] — термопечать даёт «шумную» чёрную заливку. */
-const zbarGrayAttempts = [
+const ZBAR_GRAY_ATTEMPTS: [number, number][] = [
   [2500, 140],
   [2500, 160],
   [2500, 128],
@@ -143,22 +123,23 @@ const zbarGrayAttempts = [
   [4000, 160],
 ];
 
-let decoded = null;
+/** Возвращает сырую строку из QR или null. */
+export async function decodeQrFromImageBuffer(input: Buffer): Promise<string | null> {
+  const base = sharp(input).autoOrient();
 
-for (const [width, th] of zbarGrayAttempts) {
-  decoded = await tryZbarGray(
-    base
-      .clone()
-      .resize({ width, fit: "inside", withoutEnlargement: false })
-      .greyscale()
-      .normalize()
-      .threshold(th)
-      .raw()
-  );
-  if (decoded) break;
-}
+  for (const [width, th] of ZBAR_GRAY_ATTEMPTS) {
+    const t = await tryZbarGray(
+      base
+        .clone()
+        .resize({ width, fit: "inside", withoutEnlargement: false })
+        .greyscale()
+        .normalize()
+        .threshold(th)
+        .raw()
+    );
+    if (t) return t;
+  }
 
-if (!decoded) {
   const rgbaZbarVariants = [
     base.clone().ensureAlpha().raw(),
     base
@@ -175,12 +156,10 @@ if (!decoded) {
       .raw(),
   ];
   for (const prep of rgbaZbarVariants) {
-    decoded = await tryZbarRgba(prep);
-    if (decoded) break;
+    const t = await tryZbarRgba(prep);
+    if (t) return t;
   }
-}
 
-if (!decoded) {
   const zxingVariants = [
     base.clone().ensureAlpha().raw(),
     base
@@ -207,16 +186,9 @@ if (!decoded) {
   for (const prep of zxingVariants) {
     const { rgba, width, height } = await toRgba(prep);
     if (rgba.length !== width * height * 4) continue;
-    decoded = tryZxing(rgba, width, height) || tryJsQr(rgba, width, height);
-    if (decoded) break;
+    const decoded = tryZxing(rgba, width, height) || tryJsQr(rgba, width, height);
+    if (decoded) return decoded;
   }
-}
 
-if (!decoded) {
-  console.error("QR-код не найден (попробуйте другое фото или выше разрешение).");
-  process.exit(2);
+  return null;
 }
-
-console.log("--- распознанная строка QR ---");
-console.log(decoded);
-console.log("--- конец ---");

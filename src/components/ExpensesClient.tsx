@@ -2,11 +2,13 @@
 
 import dynamic from "next/dynamic";
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Plus, X, Wallet, QrCode, Pencil, Trash2, ImagePlus, Camera, FileImage } from "lucide-react";
+import { Plus, X, Wallet, QrCode, Pencil, Trash2, ImagePlus, Camera } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { cn, formatMoney, EXPENSE_CATEGORY_LABELS } from "@/lib/utils";
+import { canonicalFnsQrraw } from "@/lib/fns-qr";
+import { decodeQrFromImageFile } from "@/lib/decode-qr-client";
 
 type Expense = {
   id: string;
@@ -252,10 +254,11 @@ export default function ExpensesClient({
       setError("");
       setLoading(true);
       try {
+        const qrraw = canonicalFnsQrraw(raw) ?? raw.trim();
         const res = await fetch("/api/expenses/from-receipt", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ qrraw: raw }),
+          body: JSON.stringify({ qrraw }),
         });
         const d = (await res.json().catch(() => ({}))) as { error?: string };
         if (!res.ok) {
@@ -287,6 +290,11 @@ export default function ExpensesClient({
       setError("");
       setLoading(true);
       try {
+        const localQrraw = await decodeQrFromImageFile(file);
+        if (localQrraw) {
+          await importFromReceipt(localQrraw);
+          return;
+        }
         const fd = new FormData();
         fd.append("file", file);
         const res = await fetch("/api/expenses/from-receipt", { method: "POST", body: fd });
@@ -315,7 +323,7 @@ export default function ExpensesClient({
         setLoading(false);
       }
     },
-    [router]
+    [router, importFromReceipt]
   );
 
   async function ensureNewPlace(): Promise<string | undefined> {
@@ -623,37 +631,18 @@ export default function ExpensesClient({
               </h2>
               <div className="flex items-center gap-1">
                 {!editingId && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setReceiptQrUploadError("");
-                        setShowQrScanner(true);
-                      }}
-                      className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0"
-                      title="Сканировать QR чека"
-                    >
-                      <QrCode className="h-4 w-4 shrink-0" />
-                      <span className="hidden sm:inline">QR чека</span>
-                    </button>
-                    <label
-                      className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0"
-                      title="Загрузить фото чека — распознавание QR на сервере (нужен PROVERKACHEKA_API_TOKEN)"
-                    >
-                      <FileImage className="h-4 w-4 shrink-0" />
-                      <span className="hidden sm:inline">Фото чека</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={loading}
-                        onChange={(e) => {
-                          void importFromReceiptPhoto(e.target.files?.[0] ?? null);
-                          e.target.value = "";
-                        }}
-                      />
-                    </label>
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReceiptQrUploadError("");
+                      setShowQrScanner(true);
+                    }}
+                    className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0"
+                    title="Сканировать QR чека (камера или галерея)"
+                  >
+                    <QrCode className="h-4 w-4 shrink-0" />
+                    <span className="hidden sm:inline">QR чека</span>
+                  </button>
                 )}
                 <button
                   type="button"

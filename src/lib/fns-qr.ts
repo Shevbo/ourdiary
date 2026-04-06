@@ -24,6 +24,34 @@ function parseSum(s: string | null): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+/**
+ * Приводит распознанный текст к одной строке `qrraw` для ProverkaCheka / ФНС
+ * (порядок полей и значения как в QR).
+ */
+export function canonicalFnsQrraw(input: string): string | null {
+  const raw = input.trim();
+  if (!raw) return null;
+
+  let query = raw;
+  try {
+    const u = new URL(raw);
+    query = u.search ? u.search.slice(1) : raw;
+  } catch {
+    const q = raw.indexOf("?");
+    if (q >= 0) query = raw.slice(q + 1);
+  }
+
+  const sp = new URLSearchParams(query);
+  const t = sp.get("t");
+  const s = sp.get("s");
+  const fn = sp.get("fn");
+  const i = sp.get("i");
+  const fp = sp.get("fp");
+  const n = sp.get("n");
+  if (!t || !s || !fn || !i || !fp || n === null) return null;
+  return `t=${t}&s=${s}&fn=${fn}&i=${i}&fp=${fp}&n=${n}`;
+}
+
 export function parseFnsQrRaw(input: string): FnsQrParams | null {
   const raw = input.trim();
   if (!raw) return null;
