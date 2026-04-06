@@ -4,21 +4,24 @@
 
 .DESCRIPTION
   После копирования файл можно открыть на сервере в Cursor/IDE или положить в клон репозитория и закоммитить
-  (если документация не секретная). Подставьте свой SSH-хост и путь.
+  (если документация не секретная).
+
+  По умолчанию: SSH-алиас **shectory-work** (ключ в ~/.ssh, без пароля) и каталог клона **~/workspaces/ourdiary**
+  — как в реестре Shectory / deploy-project.sh.
 
   Требования: Windows 10+ с клиентом OpenSSH (scp) — «Параметры → Приложения → Дополнительные компоненты → OpenSSH Client».
 
 .EXAMPLE
   .\scripts\upload-documentation-api.ps1
 .EXAMPLE
-  .\scripts\upload-documentation-api.ps1 -RemoteHost "user@shectory.example.ru" -RemoteDir "~/ourdiary"
+  .\scripts\upload-documentation-api.ps1 -RemoteDir "~/ourdiary"
 #>
 
 [CmdletBinding()]
 param(
     [string] $LocalPath = "C:\Temp\documentation_api.pdf",
-    [string] $RemoteHost = "hoster",
-    [string] $RemoteDir = "~/ourdiary",
+    [string] $RemoteHost = "shectory-work",
+    [string] $RemoteDir = "~/workspaces/ourdiary",
     [string] $RemoteFileName = "documentation_api.pdf"
 )
 
@@ -39,7 +42,7 @@ Write-Host ""
 & scp $LocalPath "${RemoteHost}:$RemotePath"
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "scp завершился с кодом $LASTEXITCODE. Проверьте: ssh $RemoteHost, ключи, known_hosts, путь на сервере."
+    Write-Error "scp завершился с кодом $LASTEXITCODE. Проверьте: ssh $RemoteHost (без пароля), known_hosts, путь на сервере."
     exit $LASTEXITCODE
 }
 
