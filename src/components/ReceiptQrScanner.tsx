@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useId, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import { X, Camera, ImageIcon, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ export default function ReceiptQrScanner({
   const [lastFile, setLastFile] = useState<File | null>(null);
   const [hint, setHint] = useState("");
   const [nativeStreaming, setNativeStreaming] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
 
   const onDecodedRef = useRef(onDecoded);
   onDecodedRef.current = onDecoded;
@@ -245,8 +247,25 @@ export default function ReceiptQrScanner({
     };
   }, [tab, polyfillRootId]);
 
-  return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-black/90 backdrop-blur-sm p-3 sm:p-4 relative">
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  const shell = (
+    <div
+      className="fixed inset-0 z-[9999] flex min-h-[100dvh] flex-col overflow-y-auto overscroll-contain bg-neutral-950/97 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 supports-[backdrop-filter]:backdrop-blur-md"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="receipt-qr-scanner-title"
+    >
       {(busy || receiptPhotoBusy) && (
         <div
           className="absolute inset-0 z-[70] flex flex-col items-center justify-center gap-2 bg-black/65 px-4"
@@ -269,7 +288,9 @@ export default function ReceiptQrScanner({
         </button>
       </div>
 
-      <p className="text-center text-base font-medium text-white mb-2">Чек по QR (ФНС)</p>
+      <p id="receipt-qr-scanner-title" className="text-center text-base font-medium text-white mb-2">
+        Чек по QR (ФНС)
+      </p>
 
       <div className="mx-auto mb-3 flex max-w-md rounded-xl border border-white/20 bg-white/10 p-1 w-full">
         <button
@@ -397,4 +418,7 @@ export default function ReceiptQrScanner({
       </p>
     </div>
   );
+
+  if (!portalReady || typeof document === "undefined") return null;
+  return createPortal(shell, document.body);
 }

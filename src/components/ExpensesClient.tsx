@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Plus, X, Wallet, QrCode, Pencil, Trash2, ImagePlus, Camera } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -9,6 +9,7 @@ import { ru } from "date-fns/locale";
 import { cn, formatMoney, EXPENSE_CATEGORY_LABELS } from "@/lib/utils";
 import { canonicalFnsQrraw } from "@/lib/fns-qr";
 import { decodeQrFromImageFile } from "@/lib/decode-qr-client";
+import { compressImageFileForReceiptUpload } from "@/lib/compress-receipt-image-client";
 
 type ExpenseReceiptLineRow = {
   id: string;
@@ -40,6 +41,22 @@ type Expense = {
 type UserOpt = { id: string; name: string | null };
 
 const ReceiptQrScanner = dynamic(() => import("./ReceiptQrScanner"), { ssr: false });
+
+function receiptPhotoUploadErrorMessage(res: Response, raw: string): string {
+  if (res.status === 413 || /413|Request Entity Too Large|Entity Too Large/i.test(raw)) {
+    return "Снимок слишком большой для прокси (nginx). Повторите отправку — фото ужимается перед загрузкой. Если снова ошибка, админу: увеличить client_max_body_size.";
+  }
+  const t = raw.trim();
+  if (t.startsWith("<") || t.includes("<html")) {
+    return `Ошибка сервера (HTTP ${res.status}). Попробуйте другой снимок или позже.`;
+  }
+  try {
+    const d = JSON.parse(raw) as { error?: string; message?: string };
+    return d.error ?? d.message ?? `Ошибка сервера (HTTP ${res.status})`;
+  } catch {
+    return raw.length > 280 ? `${raw.slice(0, 280)}…` : raw || `Ошибка сервера (HTTP ${res.status})`;
+  }
+}
 
 const CATEGORY_COLORS: Record<string, string> = {
   FOOD: "bg-orange-500/20 text-orange-400",
@@ -107,6 +124,7 @@ export default function ExpensesClient({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [receiptImageUrl, setReceiptImageUrl] = useState<string | null>(null);
   const [uploadBusy, setUploadBusy] = useState<"" | "img" | "receipt">("");
+  const resumeExpenseFormAfterQr = useRef(false);
 
   const isAdmin = currentUserRole === "ADMIN" || currentUserRole === "SUPERADMIN";
 
@@ -273,6 +291,7 @@ export default function ExpensesClient({
           return;
         }
         setReceiptQrUploadError("");
+        resumeExpenseFormAfterQr.current = false;
         setShowQrScanner(false);
         setShowForm(false);
         router.refresh();
@@ -302,26 +321,28 @@ export default function ExpensesClient({
       try {
         const localQrraw = await decodeQrFromImageFile(file);
         if (localQrraw) {
+          resumeExpenseFormAfterQr.current = false;
           await importFromReceipt(localQrraw);
           return;
         }
-        const fd = new FormData();
-        fd.append("file", file);
-        const res = await fetch("/api/expenses/from-receipt", { method: "POST", body: fd });
-        const raw = await res.text();
-        if (!res.ok) {
-          let msg = "Не удалось импортировать чек по фото";
-          try {
-            const d = JSON.parse(raw) as { error?: string; message?: string };
-            msg = d.error ?? d.message ?? (raw ? raw.slice(0, 400) : msg);
-          } catch {
-            if (raw) msg = raw.length > 400 ? `${raw.slice(0, 400)}…` : raw;
-            else msg = `Ошибка сервера (HTTP ${res.status})`;
-          }
+        const compressed = await compressImageFileForReceiptUpload(file);
+        if (compressed.size > 8 * 1024 * 1024) {
+          const msg = "После сжатия файл всё ещё больше 8 МБ — снимите чек ближе или с меньшим разрешением.";
           setError(msg);
           setReceiptQrUploadError(msg);
           return;
         }
+        const fd = new FormData();
+        fd.append("file", compressed);
+        const res = await fetch("/api/expenses/from-receipt", { method: "POST", body: fd });
+        const raw = await res.text();
+        if (!res.ok) {
+          const msg = receiptPhotoUploadErrorMessage(res, raw);
+          setError(msg);
+          setReceiptQrUploadError(msg);
+          return;
+        }
+        resumeExpenseFormAfterQr.current = false;
         setShowQrScanner(false);
         setShowForm(false);
         router.refresh();
@@ -676,6 +697,8 @@ export default function ExpensesClient({
                     type="button"
                     onClick={() => {
                       setReceiptQrUploadError("");
+                      resumeExpenseFormAfterQr.current = true;
+                      setShowForm(false);
                       setShowQrScanner(true);
                     }}
                     className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 min-h-11 sm:min-h-0"
@@ -892,6 +915,10 @@ export default function ExpensesClient({
           onClose={() => {
             setReceiptQrUploadError("");
             setShowQrScanner(false);
+            if (resumeExpenseFormAfterQr.current) {
+              resumeExpenseFormAfterQr.current = false;
+              setShowForm(true);
+            }
           }}
         />
       )}

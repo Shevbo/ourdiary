@@ -22,6 +22,9 @@ server {
     listen [::]:80;
     server_name ourdiary.shectory.ru;
 
+    # Импорт чека по фото (multipart) — дефолт nginx 1m даёт 413; приложение принимает до 8 МБ.
+    client_max_body_size 12M;
+
     location /.well-known/acme-challenge/ {
         root /var/www/html;
     }

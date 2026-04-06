@@ -87,11 +87,43 @@ async function tryJsQrFromFile(file: File): Promise<string | null> {
 
 let fileScanBoxCounter = 0;
 
+/** Слишком крупные кадры с iPhone часто плохо детектятся и тормозят BarcodeDetector. */
+const MAX_DETECT_EDGE = 2000;
+
+async function imageBitmapScaledForDetect(file: File): Promise<ImageBitmap> {
+  const src = await createImageBitmap(file);
+  const iw = src.width;
+  const ih = src.height;
+  if (iw < 8 || ih < 8) {
+    src.close();
+    throw new Error("small image");
+  }
+  const edge = Math.max(iw, ih);
+  if (edge <= MAX_DETECT_EDGE) return src;
+
+  const scale = MAX_DETECT_EDGE / edge;
+  const w = Math.floor(iw * scale);
+  const h = Math.floor(ih * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    src.close();
+    throw new Error("no ctx");
+  }
+  ctx.drawImage(src, 0, 0, w, h);
+  src.close();
+  const out = await createImageBitmap(canvas);
+  return out;
+}
+
 async function decodeQrFromImageFileInner(file: File): Promise<string | null> {
   const detector = getNativeBarcodeDetector();
   if (detector && typeof createImageBitmap !== "undefined") {
+    let bmp: ImageBitmap | null = null;
     try {
-      const bmp = await createImageBitmap(file);
+      bmp = await imageBitmapScaledForDetect(file);
       try {
         const codes = await detector.detect(bmp);
         for (const c of codes) {
