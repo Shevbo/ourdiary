@@ -230,7 +230,7 @@ model Expense {
   amount      Decimal         @db.Decimal(10, 2)
   currency    String          @default("RUB")
   /// Код из ExpenseCategoryDefinition (например FOOD)
-  category    String          @default("OTHER")
+  category    String          @default("UNRECOGNIZED")
   date        DateTime        @default(now())
   note        String?
   /// Произвольное фото к расходу
@@ -258,8 +258,8 @@ model ExpenseReceiptLine {
   expense   Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   title     String
   amount    Decimal  @db.Decimal(10, 2)
-  /// Код категории (позже — разбор ИИ); пока OTHER
-  category  String   @default("OTHER")
+  /// Код категории (разбор ИИ / вручную)
+  category  String   @default("UNRECOGNIZED")
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 

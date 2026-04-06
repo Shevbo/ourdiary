@@ -191,7 +191,7 @@ async function persistExpenseLines(
     const receiptLines: { id: string; title: string; amount: unknown; category: string; sortOrder: number }[] = [];
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const lineCat = lineCategories[i] ?? "OTHER";
+      const lineCat = lineCategories[i] ?? "UNRECOGNIZED";
       const row = await tx.expenseReceiptLine.create({
         data: {
           expenseId: parent.id,

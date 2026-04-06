@@ -40,11 +40,11 @@ const RULES: { cat: string; re: RegExp[] }[] = [
 
 export function guessExpenseCategoryFromProductName(name: string): string {
   const n = name.trim();
-  if (!n) return "OTHER";
+  if (!n) return "UNRECOGNIZED";
   for (const { cat, re } of RULES) {
     for (const r of re) {
       if (r.test(n)) return cat;
     }
   }
-  return "OTHER";
+  return "UNRECOGNIZED";
 }

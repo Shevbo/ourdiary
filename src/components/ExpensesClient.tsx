@@ -66,6 +66,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   HOME: "bg-amber-500/20 text-amber-400",
   VACATION: "bg-emerald-500/20 text-emerald-400",
   SHOPPING_PLAN: "bg-teal-500/20 text-teal-400",
+  UNRECOGNIZED: "bg-zinc-500/20 text-zinc-400",
   OTHER: "bg-slate-500/20 text-slate-400",
 };
 
@@ -80,6 +81,7 @@ const CATEGORY_BAR_FILL: Record<string, string> = {
   HOME: "#d97706",
   VACATION: "#10b981",
   SHOPPING_PLAN: "#14b8a6",
+  UNRECOGNIZED: "#71717a",
   OTHER: "#64748b",
 };
 
@@ -122,6 +124,7 @@ export default function ExpensesClient({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [receiptImageUrl, setReceiptImageUrl] = useState<string | null>(null);
   const [uploadBusy, setUploadBusy] = useState<"" | "img" | "receipt">("");
+  const [spreadBusy, setSpreadBusy] = useState(false);
   const resumeExpenseFormAfterQr = useRef(false);
 
   const isAdmin = currentUserRole === "ADMIN" || currentUserRole === "SUPERADMIN";
@@ -362,6 +365,62 @@ export default function ExpensesClient({
     setPlaceId(p.id);
     setNewPlaceName("");
     return p.id;
+  }
+
+  async function spreadCategories() {
+    if (!editingId) return;
+    setSpreadBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/expenses/${editingId}/spread-categories`, { method: "POST" });
+      const raw = await res.text();
+      let d: Record<string, unknown>;
+      try {
+        d = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        setError("Некорректный ответ сервера");
+        return;
+      }
+      if (!res.ok) {
+        setError((d.error as string) ?? "Не удалось разнести по категориям");
+        return;
+      }
+      const cat = String(d.category ?? "");
+      setCategory(cat);
+      setPlaceId((d.placeId as string | null | undefined) ?? "");
+      const pl = d.place as { id: string; name: string } | null | undefined;
+      if (pl?.id) {
+        setPlaces((prev) =>
+          prev.some((p) => p.id === pl.id) ? prev : [...prev, pl].sort((a, b) => a.name.localeCompare(b.name))
+        );
+      }
+      const lines = (d.receiptLines as Array<Record<string, unknown>> | undefined) ?? [];
+      const normalizedLines: ExpenseReceiptLineRow[] = lines.map((r) => ({
+        id: String(r.id),
+        title: String(r.title),
+        amount: Number(r.amount),
+        category: String(r.category),
+        sortOrder: Number(r.sortOrder),
+      }));
+      setExpenses((prev) =>
+        prev.map((e) =>
+          e.id === editingId
+            ? {
+                ...e,
+                category: cat,
+                placeId: (d.placeId as string | null | undefined) ?? null,
+                place: pl ?? null,
+                receiptLines: normalizedLines.length ? normalizedLines : e.receiptLines,
+              }
+            : e
+        )
+      );
+      router.refresh();
+    } catch {
+      setError("Ошибка соединения");
+    } finally {
+      setSpreadBusy(false);
+    }
   }
 
   async function handleSubmit(ev: React.FormEvent) {
@@ -620,6 +679,9 @@ export default function ExpensesClient({
                             <thead className="sticky top-0 z-[1] bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
                               <tr>
                                 <th className="px-2 py-1.5 font-medium text-slate-600 dark:text-slate-400">Позиция</th>
+                                <th className="px-2 py-1.5 font-medium text-slate-600 dark:text-slate-400 w-[6.5rem]">
+                                  Категория
+                                </th>
                                 <th className="px-2 py-1.5 font-medium text-right text-slate-600 dark:text-slate-400 w-[7rem]">
                                   Сумма
                                 </th>
@@ -632,6 +694,9 @@ export default function ExpensesClient({
                                   className="border-t border-slate-100 dark:border-slate-800/80 hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
                                 >
                                   <td className="px-2 py-1 text-slate-800 dark:text-slate-200 align-top">{r.title}</td>
+                                  <td className="px-2 py-1 text-slate-600 dark:text-slate-400 align-top text-[11px] leading-snug">
+                                    {categoryLabel[r.category] ?? r.category}
+                                  </td>
                                   <td className="px-2 py-1 text-right tabular-nums text-slate-800 dark:text-slate-200 whitespace-nowrap">
                                     {formatMoney(r.amount)}
                                   </td>
@@ -813,6 +878,25 @@ export default function ExpensesClient({
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
+
+              {editingId && category === "UNRECOGNIZED" && (
+                <div className="rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/40 p-3">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
+                    Разнести позиции по категориям (ИИ) и заполнить «Место» из продавца в заметке, если он указан.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void spreadCategories()}
+                    disabled={spreadBusy || loading}
+                    className={cn(
+                      "w-full rounded-lg border border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm font-medium text-indigo-800 dark:text-indigo-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/80",
+                      (spreadBusy || loading) && "opacity-60 cursor-not-allowed"
+                    )}
+                  >
+                    {spreadBusy ? "Разнесение…" : "Разнести по категориям"}
+                  </button>
+                </div>
+              )}
 
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3 space-y-3">
                 <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Вложения</p>

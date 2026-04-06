@@ -40,16 +40,34 @@ export function resolvePlaceNameForExpense(importMeta?: ReceiptImportMeta): stri
   return undefined;
 }
 
+/**
+ * Извлекает из текста заметки (импорт чека) поля для классификации и «Места» — продавец после `Продавец:`.
+ */
+export function parseReceiptMetaFromExpenseNote(note: string | null | undefined): ReceiptImportMeta {
+  const t = (note ?? "").trim();
+  if (!t) return {};
+  const idx = t.search(/Продавец\s*:/i);
+  if (idx < 0) return {};
+  let rest = t.slice(idx).replace(/^Продавец\s*:\s*/i, "");
+  const cutInn = rest.search(/\bИНН\s*:/i);
+  if (cutInn >= 0) rest = rest.slice(0, cutInn);
+  const cutCash = rest.search(/\bКассир\s*:/i);
+  if (cutCash >= 0) rest = rest.slice(0, cutCash);
+  const seller = rest.replace(/\s+/g, " ").trim();
+  if (!seller) return {};
+  return { sellerName: seller };
+}
+
 export type CategoryDefinitionRow = { code: string; label: string };
 
 function dominantCategoryByAmount(categories: string[], sums: number[]): string {
-  if (categories.length === 0 || categories.length !== sums.length) return "OTHER";
+  if (categories.length === 0 || categories.length !== sums.length) return "UNRECOGNIZED";
   const acc = new Map<string, number>();
   for (let i = 0; i < categories.length; i++) {
-    const c = categories[i] ?? "OTHER";
+    const c = categories[i] ?? "UNRECOGNIZED";
     acc.set(c, (acc.get(c) ?? 0) + (sums[i] ?? 0));
   }
-  let best = "OTHER";
+  let best = "UNRECOGNIZED";
   let bestSum = -1;
   for (const [c, s] of acc) {
     if (s > bestSum) {
@@ -92,9 +110,9 @@ function parseJsonObject(text: string): Record<string, unknown> | null {
 }
 
 function normalizeCode(v: unknown, allowed: Set<string>): string {
-  if (typeof v !== "string") return "OTHER";
+  if (typeof v !== "string") return "UNRECOGNIZED";
   const c = v.trim().toUpperCase();
-  return allowed.has(c) ? c : "OTHER";
+  return allowed.has(c) ? c : "UNRECOGNIZED";
 }
 
 /**
@@ -107,6 +125,7 @@ export async function classifyReceiptExpenseLines(params: {
 }): Promise<{ parentCategory: string; lineCategories: string[] }> {
   const { lines, importMeta, categoryDefinitions } = params;
   const allowed = new Set(categoryDefinitions.filter((d) => d.code).map((d) => d.code.toUpperCase()));
+  if (!allowed.has("UNRECOGNIZED")) allowed.add("UNRECOGNIZED");
   if (!allowed.has("OTHER")) allowed.add("OTHER");
 
   const fallback = heuristicClassify(lines);

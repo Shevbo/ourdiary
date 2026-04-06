@@ -47,6 +47,7 @@ export const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
   HOME: "Дом",
   VACATION: "Отпуск",
   SHOPPING_PLAN: "План покупок",
+  UNRECOGNIZED: "Не распознано",
   OTHER: "Прочее",
 };
 
