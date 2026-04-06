@@ -25,6 +25,7 @@ module.exports = {
       script: "npm",
       args: "run qr-decode-server",
       instances: 1,
+      exec_mode: "fork",
       env: {
         NODE_ENV: "production",
         QR_DECODE_HOST: "127.0.0.1",
