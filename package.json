@@ -9,6 +9,8 @@
     "lint": "eslint",
     "midnight-worker": "tsx scripts/midnight-worker.ts",
     "sync-app-news": "tsx scripts/sync-app-news.ts",
+    "normalize-expense-places": "tsx scripts/normalize-expense-place-names.ts",
+    "test:gemini-proxy": "tsx scripts/test-gemini-proxy.ts",
     "decode-qr": "node scripts/decode-qr-from-image.mjs",
     "qr-decode-server": "tsx services/qr-decode-server/src/server.ts",
     "postinstall": "prisma generate"

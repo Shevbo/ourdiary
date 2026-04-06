@@ -134,6 +134,17 @@ export default function ExpensesClient({
   const [trainAccum, setTrainAccum] = useState<Record<string, string>>({});
   const [trainBusy, setTrainBusy] = useState(false);
   const resumeExpenseFormAfterQr = useRef(false);
+  const imgExpenseInputRef = useRef<HTMLInputElement>(null);
+  const receiptCameraInputRef = useRef<HTMLInputElement>(null);
+  const receiptGalleryInputRef = useRef<HTMLInputElement>(null);
+  const attachMenuRef = useRef<HTMLDivElement>(null);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [adminCategoryRows, setAdminCategoryRows] = useState<Array<{ id: string; code: string; label: string }>>([]);
+  const [newCatCode, setNewCatCode] = useState("");
+  const [newCatLabel, setNewCatLabel] = useState("");
+  const [editCategoryId, setEditCategoryId] = useState("");
+  const [editCategoryLabel, setEditCategoryLabel] = useState("");
+  const [adminCatBusy, setAdminCatBusy] = useState(false);
 
   const isAdmin = currentUserRole === "ADMIN" || currentUserRole === "SUPERADMIN";
 
@@ -156,6 +167,25 @@ export default function ExpensesClient({
     [categoryPairs]
   );
 
+  const refreshCategoryOptions = useCallback(async () => {
+    try {
+      const cRes = await fetch("/api/expense-categories");
+      if (cRes.ok) {
+        const j = (await cRes.json()) as { categories: { code: string; label: string }[] };
+        setCategoryOptions(j.categories);
+      }
+      if (isAdmin) {
+        const aRes = await fetch("/api/admin/expense-categories");
+        if (aRes.ok) {
+          const j = (await aRes.json()) as { categories: { id: string; code: string; label: string }[] };
+          setAdminCategoryRows(j.categories);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [isAdmin]);
+
   useEffect(() => {
     setExpenses(initialExpenses);
   }, [initialExpenses]);
@@ -163,25 +193,29 @@ export default function ExpensesClient({
   useEffect(() => {
     void (async () => {
       try {
-        const [uRes, pRes, cRes] = await Promise.all([
-          fetch("/api/users"),
-          fetch("/api/expense-places"),
-          fetch("/api/expense-categories"),
-        ]);
+        const [uRes, pRes] = await Promise.all([fetch("/api/users"), fetch("/api/expense-places")]);
         if (uRes.ok) {
           const list = (await uRes.json()) as UserOpt[];
           setFamilyUsers(list);
         }
         if (pRes.ok) setPlaces(await pRes.json());
-        if (cRes.ok) {
-          const j = (await cRes.json()) as { categories: { code: string; label: string }[] };
-          setCategoryOptions(j.categories);
-        }
+        await refreshCategoryOptions();
       } catch {
         /* ignore */
       }
     })();
-  }, []);
+  }, [refreshCategoryOptions]);
+
+  useEffect(() => {
+    if (!attachMenuOpen) return;
+    function onDoc(ev: MouseEvent) {
+      if (attachMenuRef.current && !attachMenuRef.current.contains(ev.target as Node)) {
+        setAttachMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [attachMenuOpen]);
 
   function openCreate() {
     setEditingId(null);
@@ -447,6 +481,132 @@ export default function ExpensesClient({
     setTrainBusy(false);
   }
 
+  async function submitNewAdminCategory() {
+    if (!newCatCode.trim() || !newCatLabel.trim()) return;
+    setAdminCatBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/expense-categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: newCatCode, label: newCatLabel }),
+      });
+      const d = (await res.json()) as { code?: string; error?: string };
+      if (!res.ok) {
+        setError(d.error ?? "Не удалось добавить категорию");
+        return;
+      }
+      setNewCatCode("");
+      setNewCatLabel("");
+      await refreshCategoryOptions();
+      if (d.code) setTrainCategorySelect(d.code);
+    } finally {
+      setAdminCatBusy(false);
+    }
+  }
+
+  async function submitEditAdminCategory() {
+    if (!editCategoryId) return;
+    setAdminCatBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/expense-categories/${editCategoryId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: editCategoryLabel }),
+      });
+      const d = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(d.error ?? "Не удалось сохранить");
+        return;
+      }
+      setEditCategoryId("");
+      setEditCategoryLabel("");
+      await refreshCategoryOptions();
+    } finally {
+      setAdminCatBusy(false);
+    }
+  }
+
+  function renderTrainAdminCategoryBlock() {
+    if (!isAdmin) return null;
+    return (
+      <div className="border-t border-slate-200 dark:border-slate-700 pt-3 mt-3 space-y-3">
+        <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Категории (админ)</p>
+        <div className="flex flex-wrap gap-2 items-end">
+          <div className="w-[min(100%,7rem)]">
+            <label className="block text-[11px] text-slate-500 mb-0.5">Код</label>
+            <input
+              type="text"
+              value={newCatCode}
+              onChange={(e) => setNewCatCode(e.target.value)}
+              placeholder="Напр. AUTO"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs uppercase"
+            />
+          </div>
+          <div className="flex-1 min-w-[8rem]">
+            <label className="block text-[11px] text-slate-500 mb-0.5">Название</label>
+            <input
+              type="text"
+              value={newCatLabel}
+              onChange={(e) => setNewCatLabel(e.target.value)}
+              placeholder="Подпись в списке"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs"
+            />
+          </div>
+          <button
+            type="button"
+            disabled={adminCatBusy || !newCatCode.trim() || !newCatLabel.trim()}
+            onClick={() => void submitNewAdminCategory()}
+            className="rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 px-3 py-1.5 text-xs font-medium text-emerald-900 dark:text-emerald-200 disabled:opacity-50"
+          >
+            Добавить
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2 items-end">
+          <div className="flex-1 min-w-[10rem]">
+            <label className="block text-[11px] text-slate-500 mb-0.5">Переименовать</label>
+            <select
+              value={editCategoryId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setEditCategoryId(id);
+                const row = adminCategoryRows.find((r) => r.id === id);
+                setEditCategoryLabel(row?.label ?? "");
+              }}
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs"
+            >
+              <option value="">— выберите категорию —</option>
+              {adminCategoryRows.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.code} — {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1 min-w-[8rem]">
+            <label className="block text-[11px] text-slate-500 mb-0.5">Новое название</label>
+            <input
+              type="text"
+              value={editCategoryLabel}
+              onChange={(e) => setEditCategoryLabel(e.target.value)}
+              disabled={!editCategoryId}
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs disabled:opacity-50"
+            />
+          </div>
+          <button
+            type="button"
+            disabled={adminCatBusy || !editCategoryId || !editCategoryLabel.trim()}
+            onClick={() => void submitEditAdminCategory()}
+            className="rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+          >
+            Сохранить
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   function openTrainWizard() {
     if (!editingId) return;
     setError("");
@@ -457,6 +617,7 @@ export default function ExpensesClient({
       setTrainMode("parent");
       setTrainCategorySelect(trainCategoryPairs[0]?.[0] ?? "FOOD");
       setShowTrainWizard(true);
+      if (isAdmin) void refreshCategoryOptions();
       return;
     }
     if (q.length === 0) {
@@ -467,9 +628,9 @@ export default function ExpensesClient({
     setTrainQueue(q);
     setTrainStep(0);
     setTrainAccum({});
-    const first = q[0]!;
     setTrainCategorySelect(trainCategoryPairs[0]?.[0] ?? "FOOD");
     setShowTrainWizard(true);
+    if (isAdmin) void refreshCategoryOptions();
   }
 
   async function submitTrainWizardFinal(acc: Record<string, string>) {
@@ -1109,60 +1270,110 @@ export default function ExpensesClient({
                   </div>
                 )}
 
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3 space-y-3">
-                <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Вложения</p>
-                <div className="flex flex-wrap gap-3 items-center">
-                  <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-indigo-600 dark:text-indigo-400 cursor-pointer hover:bg-indigo-50 dark:hover:bg-slate-800">
-                    <ImagePlus className="w-4 h-4 shrink-0" />
-                    Картинка к расходу
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-3">
+                <div className="flex items-start gap-2">
+                  <div className="flex flex-wrap gap-1.5 items-center flex-1 min-w-0 min-h-[2.25rem]">
+                    {imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={imageUrl}
+                        alt=""
+                        className="h-10 w-10 rounded-md object-cover border border-slate-200 dark:border-slate-600 shrink-0"
+                      />
+                    )}
+                    {receiptImageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={receiptImageUrl}
+                        alt="Чек"
+                        className="h-10 w-10 rounded-md object-cover border border-slate-600 grayscale shrink-0"
+                      />
+                    )}
+                    {!imageUrl && !receiptImageUrl && (
+                      <span className="text-[11px] text-slate-500">Нет вложений</span>
+                    )}
+                  </div>
+                  <div className="relative shrink-0" ref={attachMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setAttachMenuOpen((o) => !o)}
                       disabled={uploadBusy !== ""}
-                      onChange={(e) => void uploadExpenseImage(e.target.files?.[0] ?? null)}
-                    />
-                  </label>
-                  {imageUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={imageUrl} alt="" className="h-14 w-14 rounded-lg object-cover border border-slate-200 dark:border-slate-600" />
-                  )}
+                      title="Добавить вложение"
+                      className={cn(
+                        "flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800",
+                        uploadBusy !== "" && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                    {attachMenuOpen && (
+                      <div className="absolute right-0 bottom-full z-20 mb-1 min-w-[12rem] rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 py-1 shadow-lg">
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-slate-800"
+                          onClick={() => {
+                            setAttachMenuOpen(false);
+                            imgExpenseInputRef.current?.click();
+                          }}
+                        >
+                          <ImagePlus className="w-4 h-4 shrink-0" />
+                          Фото к расходу
+                        </button>
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          onClick={() => {
+                            setAttachMenuOpen(false);
+                            receiptCameraInputRef.current?.click();
+                          }}
+                        >
+                          <Camera className="w-4 h-4 shrink-0" />
+                          Снять чек
+                        </button>
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          onClick={() => {
+                            setAttachMenuOpen(false);
+                            receiptGalleryInputRef.current?.click();
+                          }}
+                        >
+                          <ImagePlus className="w-4 h-4 shrink-0" />
+                          Чек из галереи
+                        </button>
+                        <p className="px-3 pb-1.5 pt-0 text-[10px] text-slate-500">Чек на сервере сжимается до ~100 КБ</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2 items-center">
-                  <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800">
-                    <Camera className="w-4 h-4 shrink-0" />
-                    Снять чек
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      disabled={uploadBusy !== ""}
-                      onChange={(e) => void uploadReceiptImage(e.target.files?.[0] ?? null)}
-                    />
-                  </label>
-                  <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800">
-                    <ImagePlus className="w-4 h-4 shrink-0" />
-                    Чек из галереи
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      disabled={uploadBusy !== ""}
-                      onChange={(e) => void uploadReceiptImage(e.target.files?.[0] ?? null)}
-                    />
-                  </label>
-                  <span className="w-full text-[11px] text-slate-500">Сжатие ч/б до ~100 КБ на сервере</span>
-                  {receiptImageUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={receiptImageUrl}
-                      alt="Чек"
-                      className="h-14 w-14 rounded-lg object-cover border border-slate-600 grayscale"
-                    />
-                  )}
-                </div>
-                {uploadBusy && <p className="text-xs text-slate-500">Загрузка ({uploadBusy === "img" ? "фото" : "чек"})…</p>}
+                <input
+                  ref={imgExpenseInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadBusy !== ""}
+                  onChange={(e) => void uploadExpenseImage(e.target.files?.[0] ?? null)}
+                />
+                <input
+                  ref={receiptCameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  disabled={uploadBusy !== ""}
+                  onChange={(e) => void uploadReceiptImage(e.target.files?.[0] ?? null)}
+                />
+                <input
+                  ref={receiptGalleryInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadBusy !== ""}
+                  onChange={(e) => void uploadReceiptImage(e.target.files?.[0] ?? null)}
+                />
+                {uploadBusy && (
+                  <p className="mt-2 text-xs text-slate-500">Загрузка ({uploadBusy === "img" ? "фото" : "чек"})…</p>
+                )}
               </div>
 
               {error && (
@@ -1229,6 +1440,7 @@ export default function ExpensesClient({
                     ))}
                   </select>
                 </div>
+                {renderTrainAdminCategoryBlock()}
                 <div className="flex gap-2 pt-2">
                   <button
                     type="button"
@@ -1275,6 +1487,7 @@ export default function ExpensesClient({
                         ))}
                       </select>
                     </div>
+                    {renderTrainAdminCategoryBlock()}
                     <div className="flex gap-2 pt-2">
                       <button
                         type="button"
