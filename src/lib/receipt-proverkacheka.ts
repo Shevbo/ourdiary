@@ -12,7 +12,7 @@ export type ProverkachekaResult =
 
 /**
  * API proverkacheka.com: POST multipart `token` + `qrraw` или `qrfile` (фото чека с QR).
- * Документация: https://proverkacheka.com/ — лимиты бесплатного тарифа (часто ~15 запросов/сутки).
+ * Спецификация: `documentation_api.pdf` в корне репозитория — `data.json.items[].sum`, `totalSum` в **копейках**.
  */
 export async function callProverkachekaCheck(
   token: string,
@@ -60,9 +60,19 @@ export async function callProverkachekaCheck(
   }
 
   const payload = extractProverkachekaPayload(data);
-  const lines = extractLinesFromUnknownJson(payload ?? data);
+  let lines = extractStructuredReceiptLines(payload ?? data);
   if (lines.length === 0) {
-    return { ok: false, error: "В ответе чека нет позиций для импорта" };
+    lines = extractLinesFromUnknownJson(payload ?? data);
+  }
+  if (lines.length === 0) {
+    lines = extractSingleLineFromReceiptTotals(payload ?? data);
+  }
+  if (lines.length === 0) {
+    return {
+      ok: false,
+      error:
+        "В ответе ФНС нет ни позиций, ни итога. Сфотографируйте чек целиком (список покупок + QR) или проверьте чек в сервисе.",
+    };
   }
 
   const fallbackQr = "qrraw" in input ? input.qrraw.trim() : undefined;
@@ -125,8 +135,11 @@ function buildParsedFromProverkachekaResponse(
     raw: qrRaw || "proverkacheka",
     t: extractDateTFromJson(rawJson),
     sumRub: total,
-    fn: extractFieldByKey(rawJson, "fn"),
-    i: extractFieldByKey(rawJson, "i") ?? extractFieldByKey(rawJson, "fd"),
+    fn: extractFieldByKey(rawJson, "fn") ?? extractFieldByKey(rawJson, "fiscalDriveNumber"),
+    i:
+      extractFieldByKey(rawJson, "i") ??
+      extractFieldByKey(rawJson, "fd") ??
+      extractFieldByKey(rawJson, "fiscalDocumentNumber"),
   };
 }
 
@@ -244,6 +257,62 @@ function num(v: unknown): number | null {
   return null;
 }
 
+/** Спецификация API: data.json.items[].sum — в копейках. */
+function kopecksToRub(kop: number): number {
+  return Math.round((kop / 100) * 100) / 100;
+}
+
+/**
+ * Прямой разбор `data.json.items` по спецификации ProverkaCheka (name, quantity, sum в коп.).
+ */
+function extractStructuredReceiptLines(payload: unknown): ReceiptLine[] {
+  if (!payload || typeof payload !== "object") return [];
+  const o = payload as Record<string, unknown>;
+  const items = o.items;
+  if (!Array.isArray(items) || items.length === 0) return [];
+  const out: ReceiptLine[] = [];
+  for (const el of items) {
+    if (!el || typeof el !== "object" || Array.isArray(el)) continue;
+    const row = el as Record<string, unknown>;
+    const name =
+      (typeof row.name === "string" && row.name.trim()) ||
+      (typeof row.nomenclature === "string" && row.nomenclature.trim()) ||
+      "";
+    if (!name) continue;
+    const sumRaw = num(row.sum);
+    if (sumRaw == null || sumRaw <= 0) continue;
+    const sumRub = Number.isInteger(sumRaw) ? kopecksToRub(sumRaw) : Math.round(sumRaw * 100) / 100;
+    out.push({
+      name: name.slice(0, 500),
+      sum: sumRub,
+      quantity: num(row.quantity) ?? undefined,
+    });
+  }
+  return out;
+}
+
+/**
+ * Если позиций нет (обрезанное фото и т.п.), но есть totalSum в коп. и реквизиты магазина.
+ */
+function extractSingleLineFromReceiptTotals(payload: unknown): ReceiptLine[] {
+  const j =
+    payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : null;
+  if (!j) return [];
+  const totalRaw = num(j.totalSum);
+  if (totalRaw == null || totalRaw <= 0) return [];
+  const sumRub = Number.isInteger(totalRaw) ? kopecksToRub(totalRaw) : Math.round(totalRaw * 100) / 100;
+  const user = typeof j.user === "string" ? j.user.trim() : "";
+  const addr =
+    (typeof j.retailPlaceAddress === "string" && j.retailPlaceAddress.trim()) ||
+    (typeof j.retailPlaceAddres === "string" && j.retailPlaceAddres.trim()) ||
+    "";
+  const title = [user || null, addr || null].filter(Boolean).join(" · ").slice(0, 300);
+  const name = title || "Покупки по чеку (позиции не пришли в ответе ФНС)";
+  return [{ name, sum: sumRub }];
+}
+
 function extractLinesFromUnknownJson(data: unknown): ReceiptLine[] {
   const out: ReceiptLine[] = [];
   const seen = new Set<string>();
@@ -304,6 +373,6 @@ export function fallbackReceiptLinesFromFnsParams(parsed: FnsQrParams): ReceiptL
 export function httpStatusForProverkachekaError(error: string, code?: number): number {
   if (code === 429) return 429;
   if (/лимит|исчерпан|превыш|limit|exceeded|429/i.test(error)) return 429;
-  if (code === 2 || code === 3) return 429;
+  if (code === 2 || code === 3 || code === 4) return 429;
   return 422;
 }
