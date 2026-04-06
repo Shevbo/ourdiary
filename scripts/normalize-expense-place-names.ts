@@ -4,6 +4,8 @@
  *
  * Запуск: npm run normalize-expense-places
  * Требуется DATABASE_URL в .env / .env.local.
+ *
+ * Сначала подгружаются .env — только потом Prisma (см. sync-app-news.ts).
  */
 import { config } from "dotenv";
 import { resolve } from "path";
@@ -11,14 +13,15 @@ import { resolve } from "path";
 config({ path: resolve(process.cwd(), ".env"), quiet: true });
 config({ path: resolve(process.cwd(), ".env.local"), override: true, quiet: true });
 
-import { prisma } from "../src/lib/prisma";
-import { abbreviateSellerNameForPlace } from "../src/lib/receipt-expense-ai";
-
 async function main() {
-  if (!process.env.DATABASE_URL?.trim()) {
+  const dbUrl = process.env.DATABASE_URL?.trim();
+  if (!dbUrl) {
     console.error("normalize-expense-places: задайте DATABASE_URL в .env или .env.local.");
     process.exit(1);
   }
+
+  const { prisma } = await import("../src/lib/prisma");
+  const { abbreviateSellerNameForPlace } = await import("../src/lib/receipt-expense-ai");
 
   const places = await prisma.expensePlace.findMany({ orderBy: { id: "asc" } });
   let renamed = 0;
@@ -62,5 +65,10 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect();
+    try {
+      const { prisma } = await import("../src/lib/prisma");
+      await prisma.$disconnect();
+    } catch {
+      /* ignore */
+    }
   });
