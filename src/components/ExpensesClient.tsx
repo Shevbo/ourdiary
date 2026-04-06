@@ -7,8 +7,6 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { cn, formatMoney, EXPENSE_CATEGORY_LABELS } from "@/lib/utils";
-import { canonicalFnsQrraw } from "@/lib/fns-qr";
-import { decodeQrFromImageFile } from "@/lib/decode-qr-client";
 import { compressImageFileForReceiptUpload } from "@/lib/compress-receipt-image-client";
 
 type ExpenseReceiptLineRow = {
@@ -271,41 +269,6 @@ export default function ExpensesClient({
   const barGap = 4;
   const barW = (chartW - barGap * (monthlyTotals.length + 1)) / monthlyTotals.length;
 
-  const importFromReceipt = useCallback(
-    async (raw: string) => {
-      setError("");
-      setReceiptQrUploadError("");
-      setLoading(true);
-      try {
-        const qrraw = canonicalFnsQrraw(raw) ?? raw.trim();
-        const res = await fetch("/api/expenses/from-receipt", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ qrraw }),
-        });
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) {
-          const msg = d.error ?? "Не удалось импортировать чек";
-          setError(msg);
-          setReceiptQrUploadError(msg);
-          return;
-        }
-        setReceiptQrUploadError("");
-        resumeExpenseFormAfterQr.current = false;
-        setShowQrScanner(false);
-        setShowForm(false);
-        router.refresh();
-      } catch {
-        const msg = "Ошибка соединения";
-        setError(msg);
-        setReceiptQrUploadError(msg);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [router]
-  );
-
   const importFromReceiptPhoto = useCallback(
     async (file: File | null) => {
       if (!file?.size) return;
@@ -317,14 +280,7 @@ export default function ExpensesClient({
         return;
       }
       setError("");
-      setLoading(true);
       try {
-        const localQrraw = await decodeQrFromImageFile(file);
-        if (localQrraw) {
-          resumeExpenseFormAfterQr.current = false;
-          await importFromReceipt(localQrraw);
-          return;
-        }
         const compressed = await compressImageFileForReceiptUpload(file);
         if (compressed.size > 8 * 1024 * 1024) {
           const msg = "После сжатия файл всё ещё больше 8 МБ — снимите чек ближе или с меньшим разрешением.";
@@ -332,6 +288,7 @@ export default function ExpensesClient({
           setReceiptQrUploadError(msg);
           return;
         }
+        setLoading(true);
         const fd = new FormData();
         fd.append("file", compressed);
         const res = await fetch("/api/expenses/from-receipt", { method: "POST", body: fd });
@@ -354,7 +311,7 @@ export default function ExpensesClient({
         setLoading(false);
       }
     },
-    [router, importFromReceipt]
+    [router]
   );
 
   async function ensureNewPlace(): Promise<string | undefined> {
@@ -908,8 +865,7 @@ export default function ExpensesClient({
 
       {showQrScanner && (
         <ReceiptQrScanner
-          onDecoded={importFromReceipt}
-          onReceiptPhoto={importFromReceiptPhoto}
+          onReceiptPhoto={(f) => void importFromReceiptPhoto(f)}
           receiptPhotoBusy={loading}
           serverUploadError={receiptQrUploadError}
           onClose={() => {
