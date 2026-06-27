@@ -28,7 +28,8 @@ const authProxy = withAuth(
 export default authProxy;
 
 export const config = {
+  // Публичные пути телефона (доступ по токену из QR): /u/* (страница) и /api/u/* (приём).
   matcher: [
-    "/((?!login|security|api/auth|api/alice|api/tv|tv/local|tv/launcher|_next/static|_next/image|favicon.ico|uploads).*)",
+    "/((?!login|security|api/auth|api/alice|api/tv|api/u|u/|tv/local|tv/launcher|_next/static|_next/image|favicon.ico|uploads).*)",
   ],
 };

@@ -16,10 +16,25 @@ import {
   startOfWeek,
 } from "date-fns";
 import { ru } from "date-fns/locale";
-import { CalendarDays, QrCode } from "lucide-react";
+import { CalendarDays, QrCode, FileText, Video as VideoIcon, ImageIcon } from "lucide-react";
 import type { NumberedResult, TvView } from "@/lib/tv-calendar";
 
-// Фолбэк-цвет карточки по типу события, если категория не задана.
+// Tipy rasshirennyh dannyh ot servera
+export type TvAttachment = {
+  id: string;
+  kind: string; // "text" | "photo" | "video"
+  path: string | null;
+  text: string | null;
+  caption: string | null;
+};
+
+export type EventExtras = {
+  uploadUrl: string;
+  qr: string | null; // data:image/png;base64,...
+  attachments: TvAttachment[];
+};
+
+// Folbek-cvet kartochki po tipu sobytiya, esli kategoriya ne zadana.
 const TYPE_FALLBACK_COLOR: Record<string, string> = {
   PLAN: "#3b82f6",
   BIRTHDAY: "#a855f7",
@@ -36,17 +51,24 @@ const VIEW_LABELS: Record<TvView, string> = {
 };
 
 type EventItem = NumberedResult["events"][number];
+type ExtrasMap = Record<string, EventExtras>;
 
 function eventColor(ev: EventItem): string {
   return ev.category?.color ?? TYPE_FALLBACK_COLOR[ev.type] ?? "#64748b";
 }
 
+function firstPhoto(att: TvAttachment[] | undefined): TvAttachment | undefined {
+  return att?.find((a) => a.kind === "photo" && a.path);
+}
+
 export default function TvCalendarClient({
   data,
   legend,
+  extras,
 }: {
   data: NumberedResult;
   legend: { name: string; color: string }[];
+  extras: ExtrasMap;
 }) {
   const router = useRouter();
   const view = data.view;
@@ -80,7 +102,7 @@ export default function TvCalendarClient({
     [view, anchor, go]
   );
 
-  // Навигация пультом (D-pad) через keydown на window.
+  // Navigaciya pultom (D-pad) cherez keydown na window.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       switch (e.key) {
@@ -133,7 +155,7 @@ export default function TvCalendarClient({
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col gap-4 overflow-auto bg-slate-950 p-6 text-white select-none">
-      {/* Заголовок: вид + период + легенда */}
+      {/* Zagolovok: vid + period + legenda */}
       <header className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500">
@@ -157,20 +179,76 @@ export default function TvCalendarClient({
       </header>
 
       <main className="min-h-0 flex-1">
-        {view === "month" && <MonthView data={data} anchor={anchor} />}
-        {view === "week" && <WeekView data={data} anchor={anchor} />}
-        {view === "feed" && <FeedView data={data} />}
+        {view === "month" && <MonthView data={data} anchor={anchor} extras={extras} />}
+        {view === "week" && <WeekView data={data} anchor={anchor} extras={extras} />}
+        {view === "feed" && <FeedView data={data} extras={extras} />}
       </main>
 
       <footer className="text-center text-sm text-slate-500">
-        ← / → — период · ↑ / ↓ — вид · 1 месяц · 2 неделя · 3 лента
+        ← / → — период · ↑ / ↓ — вид · 1 месяц · 2 неделя · 3 лента · наведи телефон на QR чтобы добавить фото
       </footer>
     </div>
   );
 }
 
-// ─── МЕСЯЦ ───────────────────────────────────────────────────────────────────
-function MonthView({ data, anchor }: { data: NumberedResult; anchor: Date }) {
+// Render vlozhenij (prevyu)
+function AttachmentStrip({ items, compact = false }: { items: TvAttachment[]; compact?: boolean }) {
+  if (!items.length) return null;
+  const size = compact ? "h-12 w-12" : "h-24 w-24";
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {items.map((a) => {
+        if (a.kind === "photo" && a.path) {
+          // eslint-disable-next-line @next/next/no-img-element
+          return (
+            <img
+              key={a.id}
+              src={a.path}
+              alt={a.caption ?? "фото"}
+              className={`${size} rounded-lg object-cover`}
+            />
+          );
+        }
+        if (a.kind === "video" && a.path) {
+          return (
+            <div
+              key={a.id}
+              className={`${size} flex flex-col items-center justify-center rounded-lg bg-slate-800 text-slate-300`}
+            >
+              <VideoIcon className="h-6 w-6" />
+              <span className="text-[10px]">видео</span>
+            </div>
+          );
+        }
+        if (a.kind === "text" && a.text) {
+          return (
+            <div
+              key={a.id}
+              className={`flex max-w-[16rem] items-start gap-1 rounded-lg bg-slate-800 px-2 py-1 text-sm text-slate-200 ${
+                compact ? "max-w-[10rem]" : ""
+              }`}
+            >
+              <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+              <span className="line-clamp-2">{a.text}</span>
+            </div>
+          );
+        }
+        return null;
+      })}
+    </div>
+  );
+}
+
+// MESYAC
+function MonthView({
+  data,
+  anchor,
+  extras,
+}: {
+  data: NumberedResult;
+  anchor: Date;
+  extras: ExtrasMap;
+}) {
   const gridStart = startOfWeek(startOfMonth(anchor), { weekStartsOn: 1 });
   const gridEnd = endOfWeek(endOfMonth(anchor), { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
@@ -217,18 +295,35 @@ function MonthView({ data, anchor }: { data: NumberedResult; anchor: Date }) {
                 {format(day, "d")}
               </div>
               <div className="flex min-h-0 flex-col gap-1 overflow-hidden">
-                {dayEvents.map((ev) => (
-                  <div
-                    key={ev.id}
-                    className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-sm font-medium leading-tight text-white"
-                    style={{ backgroundColor: eventColor(ev) }}
-                  >
-                    <span className="shrink-0 rounded bg-black/30 px-1 text-xs font-bold tabular-nums">
-                      {ev.n}
-                    </span>
-                    <span className="truncate">{ev.title}</span>
-                  </div>
-                ))}
+                {dayEvents.map((ev) => {
+                  const ex = extras[ev.id];
+                  const att = ex?.attachments ?? [];
+                  const hasPhoto = !!firstPhoto(att);
+                  const hasMedia = att.some((a) => a.path);
+                  return (
+                    <div
+                      key={ev.id}
+                      className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-sm font-medium leading-tight text-white"
+                      style={{ backgroundColor: eventColor(ev) }}
+                    >
+                      <span className="shrink-0 rounded bg-black/30 px-1 text-xs font-bold tabular-nums">
+                        {ev.n}
+                      </span>
+                      <span className="truncate">{ev.title}</span>
+                      {hasPhoto && <ImageIcon className="h-3 w-3 shrink-0 opacity-80" />}
+                      {!hasPhoto && hasMedia && <VideoIcon className="h-3 w-3 shrink-0 opacity-80" />}
+                      {ex?.qr && (
+                        // Melkij QR v yachejke mesyaca
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={ex.qr}
+                          alt="QR"
+                          className="ml-auto h-3.5 w-3.5 shrink-0 rounded-sm bg-white p-px"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
@@ -238,8 +333,16 @@ function MonthView({ data, anchor }: { data: NumberedResult; anchor: Date }) {
   );
 }
 
-// ─── НЕДЕЛЯ ──────────────────────────────────────────────────────────────────
-function WeekView({ data, anchor }: { data: NumberedResult; anchor: Date }) {
+// NEDELYA
+function WeekView({
+  data,
+  anchor,
+  extras,
+}: {
+  data: NumberedResult;
+  anchor: Date;
+  extras: ExtrasMap;
+}) {
   const ws = startOfWeek(anchor, { weekStartsOn: 1 });
   const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
 
@@ -272,24 +375,37 @@ function WeekView({ data, anchor }: { data: NumberedResult; anchor: Date }) {
               <div className="text-3xl font-bold text-slate-200">{format(day, "d")}</div>
             </div>
             <div className="flex flex-col gap-2">
-              {dayEvents.map((ev) => (
-                <div
-                  key={ev.id}
-                  className="rounded-lg p-2 text-white"
-                  style={{ backgroundColor: eventColor(ev) }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="rounded bg-black/30 px-1.5 py-0.5 text-base font-bold tabular-nums">
-                      {ev.n}
-                    </span>
-                    <span className="text-base tabular-nums opacity-90">
-                      {format(new Date(ev.date), "HH:mm")}
-                    </span>
+              {dayEvents.map((ev) => {
+                const ex = extras[ev.id];
+                const att = ex?.attachments ?? [];
+                return (
+                  <div
+                    key={ev.id}
+                    className="rounded-lg p-2 text-white"
+                    style={{ backgroundColor: eventColor(ev) }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="rounded bg-black/30 px-1.5 py-0.5 text-base font-bold tabular-nums">
+                        {ev.n}
+                      </span>
+                      <span className="text-base tabular-nums opacity-90">
+                        {format(new Date(ev.date), "HH:mm")}
+                      </span>
+                      {ex?.qr && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={ex.qr}
+                          alt="QR для загрузки"
+                          className="ml-auto h-12 w-12 rounded-md bg-white p-0.5"
+                        />
+                      )}
+                    </div>
+                    <div className="mt-1 text-lg font-semibold leading-tight">{ev.title}</div>
+                    {ev.category && <div className="text-sm opacity-90">{ev.category.name}</div>}
+                    <AttachmentStrip items={att} compact />
                   </div>
-                  <div className="mt-1 text-lg font-semibold leading-tight">{ev.title}</div>
-                  {ev.category && <div className="text-sm opacity-90">{ev.category.name}</div>}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         );
@@ -298,8 +414,8 @@ function WeekView({ data, anchor }: { data: NumberedResult; anchor: Date }) {
   );
 }
 
-// ─── ЛЕНТА ───────────────────────────────────────────────────────────────────
-function FeedView({ data }: { data: NumberedResult }) {
+// LENTA (socset-vid)
+function FeedView({ data, extras }: { data: NumberedResult; extras: ExtrasMap }) {
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-5">
       {data.events.length === 0 && (
@@ -307,12 +423,20 @@ function FeedView({ data }: { data: NumberedResult }) {
       )}
       {data.events.map((ev) => {
         const color = eventColor(ev);
+        const ex = extras[ev.id];
+        const att = ex?.attachments ?? [];
+        const cover = firstPhoto(att);
         return (
           <article
             key={ev.id}
             className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900"
             style={{ borderLeft: `8px solid ${color}` }}
           >
+            {/* Oblozhka iz foto-vlozheniya, esli est */}
+            {cover?.path && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={cover.path} alt={ev.title} className="max-h-80 w-full object-cover" />
+            )}
             <div className="flex gap-5 p-6">
               <div className="flex flex-col items-center gap-2">
                 <div
@@ -321,10 +445,20 @@ function FeedView({ data }: { data: NumberedResult }) {
                 >
                   {ev.n}
                 </div>
-                <div className="flex h-16 w-16 flex-col items-center justify-center rounded-xl border border-dashed border-slate-600 text-slate-500">
-                  <QrCode className="h-7 w-7" />
-                  <span className="text-[10px]">QR</span>
-                </div>
+                {ex?.qr ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={ex.qr}
+                    alt="QR для загрузки фото"
+                    className="h-28 w-28 rounded-xl bg-white p-1"
+                  />
+                ) : (
+                  <div className="flex h-28 w-28 flex-col items-center justify-center rounded-xl border border-dashed border-slate-600 text-slate-500">
+                    <QrCode className="h-7 w-7" />
+                    <span className="text-[10px]">QR</span>
+                  </div>
+                )}
+                <span className="text-[11px] text-slate-500">наведи телефон</span>
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-3">
@@ -344,9 +478,8 @@ function FeedView({ data }: { data: NumberedResult }) {
                 {ev.description && (
                   <p className="mt-3 text-xl leading-relaxed text-slate-200">{ev.description}</p>
                 )}
-                {ev.authorName && (
-                  <p className="mt-2 text-base text-slate-500">{ev.authorName}</p>
-                )}
+                {ev.authorName && <p className="mt-2 text-base text-slate-500">{ev.authorName}</p>}
+                <AttachmentStrip items={att} />
               </div>
             </div>
           </article>
