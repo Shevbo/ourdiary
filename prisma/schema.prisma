@@ -150,6 +150,11 @@ model Event {
   comments    Comment[]
   votes       Vote[]
   reactions   EventReaction[]
+  categoryId  String?
+  category    Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  reminders   Reminder[]
+  attachments Attachment[]
+  uploadTokens UploadToken[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -448,4 +453,70 @@ model Notification {
 
   @@index([userId, readAt])
   @@map("notifications")
+}
+
+
+// ─── ТВ-календарь: категории, напоминания, вложения, токены, состояние ──────
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String
+  icon      String?
+  order     Int      @default(0)
+  events    Event[]
+  createdAt DateTime @default(now())
+
+  @@map("categories")
+}
+
+model Reminder {
+  id        String    @id @default(cuid())
+  eventId   String
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  remindAt  DateTime
+  recipient String
+  channel   String    @default("sms")
+  text      String?
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([remindAt, sentAt])
+  @@map("reminders")
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  kind      String
+  path      String?
+  text      String?
+  caption   String?
+  createdAt DateTime @default(now())
+
+  @@index([eventId])
+  @@map("attachments")
+}
+
+model UploadToken {
+  id        String    @id @default(cuid())
+  eventId   String
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("upload_tokens")
+}
+
+model TvViewState {
+  id        String   @id
+  view      String   @default("month")
+  anchor    DateTime @default(now())
+  snapshot  Json
+  updatedAt DateTime @updatedAt
+
+  @@map("tv_view_state")
 }
