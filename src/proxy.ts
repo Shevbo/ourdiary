@@ -10,7 +10,8 @@ const authProxy = withAuth(
       if (path.startsWith("/api/")) {
         return NextResponse.json({ error: "Режим дисплея: доступен только экран TV" }, { status: 403 });
       }
-      if (path !== "/tv") {
+      // Дисплей-сессия (ТВ-киоск) видит весь раздел /tv/* — дашборд и календарь
+      if (path !== "/tv" && !path.startsWith("/tv/")) {
         return NextResponse.redirect(new URL("/tv", req.nextUrl.origin));
       }
     }
@@ -28,6 +29,6 @@ export default authProxy;
 
 export const config = {
   matcher: [
-    "/((?!login|security|api/auth|_next/static|_next/image|favicon.ico|uploads).*)",
+    "/((?!login|security|api/auth|api/alice|api/tv|tv/local|tv/launcher|_next/static|_next/image|favicon.ico|uploads).*)",
   ],
 };
